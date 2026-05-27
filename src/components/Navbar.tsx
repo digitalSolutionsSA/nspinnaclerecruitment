@@ -41,10 +41,7 @@ export default function Navbar() {
         <div className="navbar-main-inner">
           <Link to="/" className="navbar-logo">
             <div className="logo-icon">
-              <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-                <circle cx="18" cy="18" r="18" fill="#2e7d32"/>
-                <text x="18" y="23" textAnchor="middle" fill="white" fontSize="14" fontWeight="bold" fontFamily="Arial">NS</text>
-              </svg>
+              <img src="/images/ns-logo.png" alt="NS Pinnacle Recruitment" width="58" height="58" style={{ borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
             </div>
             <div className="logo-text">
               <span className="logo-name">NS Pinnacle</span>

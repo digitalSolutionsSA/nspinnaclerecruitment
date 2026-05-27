@@ -8,10 +8,7 @@ export default function Footer() {
         <div className="footer-top">
           <div className="footer-brand">
             <div className="footer-logo">
-              <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-                <circle cx="20" cy="20" r="20" fill="#2e7d32"/>
-                <text x="20" y="26" textAnchor="middle" fill="white" fontSize="15" fontWeight="bold" fontFamily="Arial">NS</text>
-              </svg>
+              <img src="/images/ns-logo.png" alt="NS Pinnacle Recruitment" width="64" height="64" style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
               <div>
                 <span className="footer-logo-name">NS Pinnacle Recruitment</span>
                 <span className="footer-tagline">Work on a Farm in the USA</span>
@@ -41,12 +38,8 @@ export default function Footer() {
                 <a href="mailto:gauteng@nspinnaclerecruit.com">gauteng@nspinnaclerecruit.com</a>
               </li>
               <li>
-                <span className="footer-icon">✉</span>
-                <a href="mailto:manager@nspinnaclerecruit.com">manager@nspinnaclerecruit.com</a>
-              </li>
-              <li>
-                <span className="footer-icon">☎</span>
-                <a href="tel:+27637143548">+27 63 714 3548</a>
+                <span className="footer-icon">💬</span>
+                <a href="https://wa.me/27615312915">WhatsApp: 061 531 2915</a>
               </li>
             </ul>
             <div className="footer-socials">

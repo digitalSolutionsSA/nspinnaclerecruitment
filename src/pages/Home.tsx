@@ -104,14 +104,23 @@ export default function Home() {
                 We assist you through the full H-2A visa application process, ensuring all
                 paperwork is correctly completed and submitted on time.
               </p>
+              <div className="why-agent">
+                <p className="why-agent-name">Dynamic Visa Experts</p>
+                <p>Deona Joubert — 062 116 0664 | deona@dynamicvisa.co.za</p>
+                <p>Adelle Van Greunen — 062 398 3250 | adelle@dynamicvisa.co.za</p>
+              </div>
             </div>
             <div className="why-card">
               <div className="why-icon">✈️</div>
               <h3>Air Travel Tickets</h3>
               <p>
-                We coordinate your flight bookings through our trusted travel partner Ritz
-                Travel, so you arrive ready to work.
+                We coordinate your flight bookings through our trusted travel partner, so
+                you arrive ready to work.
               </p>
+              <div className="why-agent">
+                <p className="why-agent-name">GlobalExplore</p>
+                <p>Leoni Visser — +27 72 041 2171 | leoni@globalexplore.co.za</p>
+              </div>
             </div>
             <div className="why-card">
               <div className="why-icon">🛡️</div>
@@ -120,6 +129,10 @@ export default function Home() {
                 We help you obtain the necessary travel and medical insurance cover for
                 your stay in the United States.
               </p>
+              <div className="why-agent">
+                <p className="why-agent-name">MRA White River Insurance Brokers</p>
+                <p>Tania Strydom — Bryte Travel Insurance</p>
+              </div>
             </div>
             <div className="why-card">
               <div className="why-icon">💰</div>

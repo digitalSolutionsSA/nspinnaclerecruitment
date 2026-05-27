@@ -27,6 +27,12 @@ interface FormData {
   spouseDob: string;
   dateOfMarriage: string;
   usaRelatives: string;
+  // Next of Kin
+  nokName: string;
+  nokRelationship: string;
+  nokContact: string;
+  nokEmail: string;
+  nokAddress: string;
   // Passport & Visa
   passportNumber: string;
   passportIssued: string;
@@ -69,6 +75,7 @@ const initialForm: FormData = {
   smoking: '', alcohol: '', englishProficient: '', healthIssues: '', criminalRecord: '',
   maritalStatus: '', spouseName: '', spouseContact: '', spouseEmail: '',
   spouseDob: '', dateOfMarriage: '', usaRelatives: '',
+  nokName: '', nokRelationship: '', nokContact: '', nokEmail: '', nokAddress: '',
   passportNumber: '', passportIssued: '', passportExpiry: '',
   previousVisaApplication: '', visaOutcome: '',
   highestEducation: '', tertiaryEducation: '',
@@ -275,6 +282,33 @@ export default function CandidateRegistration() {
                 <div className="form-group">
                   <label>Date of Marriage</label>
                   <input type="date" value={form.dateOfMarriage} onChange={set('dateOfMarriage')} />
+                </div>
+              </div>
+            </div>
+
+            {/* ── 3b. Next of Kin ── */}
+            <div className="form-section">
+              <h3 className="form-section-title">Next of Kin</h3>
+              <div className="form-grid form-grid-2">
+                <div className="form-group">
+                  <label>Full Name *</label>
+                  <input type="text" value={form.nokName} onChange={set('nokName')} required />
+                </div>
+                <div className="form-group">
+                  <label>Relationship *</label>
+                  <input type="text" value={form.nokRelationship} onChange={set('nokRelationship')} placeholder="e.g. Mother, Brother" required />
+                </div>
+                <div className="form-group">
+                  <label>Contact Number *</label>
+                  <input type="tel" value={form.nokContact} onChange={set('nokContact')} required />
+                </div>
+                <div className="form-group">
+                  <label>Email Address</label>
+                  <input type="email" value={form.nokEmail} onChange={set('nokEmail')} />
+                </div>
+                <div className="form-group form-group-full">
+                  <label>Physical Address</label>
+                  <input type="text" value={form.nokAddress} onChange={set('nokAddress')} />
                 </div>
               </div>
             </div>

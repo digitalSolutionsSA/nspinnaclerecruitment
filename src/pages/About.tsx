@@ -63,29 +63,20 @@ export default function About() {
           </div>
           <div className="team-grid">
             <div className="team-card">
-              <div className="team-avatar">NG</div>
+              <div className="team-avatar">
+                <img src="/images/ns-logo.png" alt="NS Pinnacle Recruitment" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+              </div>
               <h3>Nicky Goncalves</h3>
               <p className="team-role">Director</p>
               <p className="team-bio">
                 Nicky leads NS Pinnacle Recruitment with a passion for connecting South
                 African agricultural workers with life-changing opportunities in the USA.
               </p>
-              <a
-                href="https://www.linkedin.com/in/nicky-goncalves"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="team-linkedin"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/>
-                  <rect x="2" y="9" width="4" height="12"/>
-                  <circle cx="4" cy="4" r="2"/>
-                </svg>
-                LinkedIn Profile
-              </a>
             </div>
             <div className="team-card">
-              <div className="team-avatar">MD</div>
+              <div className="team-avatar">
+                <img src="/images/ns-logo.png" alt="NS Pinnacle Recruitment" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+              </div>
               <h3>Marcelle de Kock</h3>
               <p className="team-role">General Manager</p>
               <p className="team-bio">
