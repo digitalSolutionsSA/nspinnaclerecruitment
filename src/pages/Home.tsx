@@ -48,8 +48,8 @@ export default function Home() {
             </div>
             <div className="who-image">
               <img
-                src="/images/tractors-in-the-fields.jpg"
-                alt="Tractors in the fields"
+                src="/images/tractor-planter.jpeg"
+                alt="Tractor with planter in the field"
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = 'none';
                 }}
@@ -64,23 +64,29 @@ export default function Home() {
       </section>
 
       {/* Focus Areas */}
-      <section className="focus-areas section bg-light">
+      <section className="focus-areas section">
         <div className="container">
           <span className="section-label">What We Cover</span>
           <h2 className="section-title">Agricultural Focus Areas</h2>
-          <div className="focus-grid">
-            <div className="focus-card">
-              <div className="focus-icon">🌾</div>
+        </div>
+        <div className="focus-split">
+          <div className="focus-panel focus-panel-crops" style={{ backgroundImage: "url('/images/crop-seedlings.jpeg')" }}>
+            <div className="focus-panel-overlay" />
+            <div className="focus-panel-content focus-content-low">
               <h3>Crops</h3>
               <p>Seasonal and permanent crop farming positions across a wide range of US farm types.</p>
             </div>
-            <div className="focus-card">
-              <div className="focus-icon">🚜</div>
-              <h3>Farming Equipment</h3>
+          </div>
+          <div className="focus-panel focus-panel-equipment" style={{ backgroundImage: "url('/images/combine-lineup.jpeg')" }}>
+            <div className="focus-panel-overlay" />
+            <div className="focus-panel-content focus-content-mid">
+              <h3>Farming<br />Equipment</h3>
               <p>Operate tractors, combines, harvesters and other modern agricultural machinery.</p>
             </div>
-            <div className="focus-card">
-              <div className="focus-icon">🐄</div>
+          </div>
+          <div className="focus-panel focus-panel-livestock" style={{ backgroundImage: "url('/images/calf.jpeg')" }}>
+            <div className="focus-panel-overlay" />
+            <div className="focus-panel-content focus-content-high">
               <h3>Livestock</h3>
               <p>Animal husbandry and livestock management roles on American farms.</p>
             </div>
@@ -96,52 +102,98 @@ export default function Home() {
           <p className="section-sub">
             From the initial application, we are with you every step of the way.
           </p>
+        </div>
           <div className="why-grid">
-            <div className="why-card">
-              <div className="why-icon">📋</div>
-              <h3>Visa Application</h3>
-              <p>
-                We assist you through the full H-2A visa application process, ensuring all
-                paperwork is correctly completed and submitted on time.
-              </p>
-              <div className="why-agent">
-                <p className="why-agent-name">Dynamic Visa Experts</p>
-                <p>Deona Joubert — 062 116 0664 | deona@dynamicvisa.co.za</p>
-                <p>Adelle Van Greunen — 062 398 3250 | adelle@dynamicvisa.co.za</p>
+            <div className="why-card why-card-visa">
+              <div className="why-image">
+                <img src="/why/visa.webp" alt="Visa application" />
+              </div>
+              <div className="why-body">
+                <h3>Visa Application</h3>
+                <p>
+                  We assist you through the full H-2A visa application process, ensuring all
+                  paperwork is correctly completed and submitted on time.
+                </p>
+                <div className="why-agent">
+                  <p className="why-agent-name">Dynamic Visa Experts</p>
+                  <p>Deona Joubert — 062 116 0664 | deona@dynamicvisa.co.za</p>
+                  <p>Adelle Van Greunen — 062 398 3250 | adelle@dynamicvisa.co.za</p>
+                </div>
               </div>
             </div>
-            <div className="why-card">
-              <div className="why-icon">✈️</div>
-              <h3>Air Travel Tickets</h3>
-              <p>
-                We coordinate your flight bookings through our trusted travel partner, so
-                you arrive ready to work.
-              </p>
-              <div className="why-agent">
-                <p className="why-agent-name">GlobalExplore</p>
-                <p>Leoni Visser — +27 72 041 2171 | leoni@globalexplore.co.za</p>
+            <div className="why-card why-card-tickets">
+              <div className="why-image">
+                <img src="/why/tickets.webp" alt="Air travel tickets" />
+              </div>
+              <div className="why-body">
+                <h3>Air Travel Tickets</h3>
+                <p>
+                  We coordinate your flight bookings through our trusted travel partner, so
+                  you arrive ready to work.
+                </p>
+                <div className="why-agent">
+                  <p className="why-agent-name">GlobalExplore</p>
+                  <p>Leoni Visser — +27 72 041 2171 | leoni@globalexplore.co.za</p>
+                </div>
               </div>
             </div>
-            <div className="why-card">
-              <div className="why-icon">🛡️</div>
-              <h3>Travel Insurance</h3>
-              <p>
-                We help you obtain the necessary travel and medical insurance cover for
-                your stay in the United States.
-              </p>
-              <div className="why-agent">
-                <p className="why-agent-name">MRA White River Insurance Brokers</p>
-                <p>Tania Strydom — Bryte Travel Insurance</p>
+            <div className="why-card why-card-insure">
+              <div className="why-image">
+                <img src="/why/insure.jpg" alt="Travel insurance" />
+              </div>
+              <div className="why-body">
+                <h3>Travel Insurance</h3>
+                <p>
+                  We help you obtain the necessary travel and medical insurance cover for
+                  your stay in the United States.
+                </p>
+                <div className="why-agent">
+                  <p className="why-agent-name">MRA White River Insurance Brokers</p>
+                  <p>Tania Strydom — Bryte Travel Insurance</p>
+                </div>
               </div>
             </div>
-            <div className="why-card">
-              <div className="why-icon">💰</div>
-              <h3>Getting You Paid</h3>
-              <p>
-                We assist with payment processing and ensure you understand your wage
-                entitlements under the H-2A program.
-              </p>
+            <div className="why-card why-card-paid">
+              <div className="why-image">
+                <img src="/why/paid.jpg" alt="Getting paid" />
+              </div>
+              <div className="why-body">
+                <h3>Getting You Paid</h3>
+                <p>
+                  We assist with payment processing and ensure you understand your wage
+                  entitlements under the H-2A program.
+                </p>
+              </div>
             </div>
+          </div>
+      </section>
+
+      {/* Gallery */}
+      <section className="gallery section">
+        <div className="container">
+          <span className="section-label">Life on the Farm</span>
+          <h2 className="section-title">A Glimpse of What Awaits You</h2>
+        </div>
+        <div className="marquee">
+          <div className="marquee-track">
+            {[
+              ['/images/trucks-sunset.jpeg', 'Grain trucks at sunset'],
+              ['/images/tractor-lineup.jpeg', 'Row of tractors'],
+              ['/images/tomato-seedling.jpeg', 'Tomato seedling'],
+              ['/images/tractor-cab-view.jpeg', 'View from a tractor cab'],
+              ['/images/grain-cart-aerial.jpeg', 'Tractor with grain cart, aerial view'],
+              ['/images/cattle-herd.jpeg', 'Cattle herd on the range'],
+              ['/images/trucks-sunset.jpeg', 'Grain trucks at sunset'],
+              ['/images/tractor-lineup.jpeg', 'Row of tractors'],
+              ['/images/tomato-seedling.jpeg', 'Tomato seedling'],
+              ['/images/tractor-cab-view.jpeg', 'View from a tractor cab'],
+              ['/images/grain-cart-aerial.jpeg', 'Tractor with grain cart, aerial view'],
+              ['/images/cattle-herd.jpeg', 'Cattle herd on the range'],
+            ].map(([src, alt], i) => (
+              <div className="marquee-item" key={i}>
+                <img src={src} alt={alt} />
+              </div>
+            ))}
           </div>
         </div>
       </section>

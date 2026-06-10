@@ -42,8 +42,8 @@ export default function About() {
             </div>
             <div className="about-image">
               <img
-                src="/images/combine-harvester.jpg"
-                alt="Combine harvester operator"
+                src="/images/combine-low-angle.jpeg"
+                alt="Combine harvesters working a field"
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = 'none';
                 }}
