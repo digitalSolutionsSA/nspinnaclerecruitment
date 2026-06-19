@@ -1,17 +1,25 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import './Navbar.css';
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
 
   const navLinks = [
     { to: '/', label: 'Home' },
     { to: '/about', label: 'About Us' },
-    { to: '/candidate-registration', label: 'Candidate Registration' },
     { to: '/faq', label: 'FAQ' },
   ];
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
+    setMenuOpen(false);
+  };
 
   return (
     <header className="navbar">
@@ -70,10 +78,33 @@ export default function Navbar() {
                   </Link>
                 </li>
               ))}
+              {user && (
+                <li>
+                  <Link
+                    to="/profile"
+                    className={location.pathname === '/profile' ? 'active' : ''}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    My Profile
+                  </Link>
+                </li>
+              )}
             </ul>
-            <Link to="/candidate-registration" className="btn-get-started" onClick={() => setMenuOpen(false)}>
-              Get Started
-            </Link>
+
+            {user ? (
+              <button className="btn-get-started btn-signout-nav" onClick={handleSignOut}>
+                Sign Out
+              </button>
+            ) : (
+              <>
+                <Link to="/login" className="btn-get-started btn-login-nav" onClick={() => setMenuOpen(false)}>
+                  Candidate Login
+                </Link>
+                <Link to="/candidate-registration" className="btn-get-started btn-register-nav" onClick={() => setMenuOpen(false)}>
+                  Candidate Registration
+                </Link>
+              </>
+            )}
           </nav>
         </div>
       </div>

@@ -1,4 +1,6 @@
 import { useState, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 import './CandidateRegistration.css';
 
 interface FormData {
@@ -66,6 +68,8 @@ interface FormData {
   livestockFarming: string;
   cropFarming: string;
   irrigationFarming: string;
+  password: string;
+  confirmPassword: string;
 }
 
 const initialForm: FormData = {
@@ -85,11 +89,39 @@ const initialForm: FormData = {
   tractors: '', combines: '', tillageCultivation: '', silageHaymaking: '',
   sprayers: '', otherFarmEquipment: '', earthmoving: '', trucks: '',
   otherSkills: '', mechanicalSkills: '', livestockFarming: '', cropFarming: '', irrigationFarming: '',
+  password: '', confirmPassword: '',
 };
 
+interface DocFiles {
+  photo: File | null;
+  passport: File | null;
+  idDoc: File | null;
+  driversLicence: File | null;
+  h2aVisas: File[];
+  criminalRecord: File | null;
+}
+
+const emptyDocs: DocFiles = {
+  photo: null, passport: null, idDoc: null,
+  driversLicence: null, h2aVisas: [], criminalRecord: null,
+};
+
+async function uploadFile(userId: string, folder: string, file: File): Promise<string | null> {
+  const ext = file.name.split('.').pop();
+  const path = `${userId}/${folder}/${Date.now()}.${ext}`;
+  const { error } = await supabase.storage.from('candidate-documents').upload(path, file);
+  if (error) return null;
+  const { data } = supabase.storage.from('candidate-documents').getPublicUrl(path);
+  return data.publicUrl;
+}
+
 export default function CandidateRegistration() {
+  const navigate = useNavigate();
   const [form, setForm] = useState<FormData>(initialForm);
+  const [docs, setDocs] = useState<DocFiles>(emptyDocs);
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const set = (field: keyof FormData) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -103,8 +135,95 @@ export default function CandidateRegistration() {
     onChange: () => setForm(prev => ({ ...prev, [field]: value })),
   });
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setError('');
+
+    if (form.password !== form.confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    if (form.password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+
+    setLoading(true);
+
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: form.email,
+      password: form.password,
+    });
+
+    if (authError) {
+      setError(authError.message);
+      setLoading(false);
+      return;
+    }
+
+    const userId = authData.user?.id;
+    if (userId) {
+      const { error: dbError } = await supabase.from('candidates').insert({
+        id: userId,
+        first_name: form.firstName, last_name: form.lastName,
+        email: form.email, id_number: form.idNumber, age: form.age,
+        date_of_birth: form.dateOfBirth, physical_address: form.physicalAddress,
+        contact_number: form.contactNumber, driver_license_code: form.driverLicenseCode,
+        social_security_number: form.socialSecurityNumber,
+        smoking: form.smoking, alcohol: form.alcohol,
+        english_proficient: form.englishProficient, health_issues: form.healthIssues,
+        criminal_record: form.criminalRecord, marital_status: form.maritalStatus,
+        spouse_name: form.spouseName, spouse_contact: form.spouseContact,
+        spouse_email: form.spouseEmail, spouse_dob: form.spouseDob,
+        date_of_marriage: form.dateOfMarriage, usa_relatives: form.usaRelatives,
+        nok_name: form.nokName, nok_relationship: form.nokRelationship,
+        nok_contact: form.nokContact, nok_email: form.nokEmail, nok_address: form.nokAddress,
+        passport_number: form.passportNumber, passport_issued: form.passportIssued,
+        passport_expiry: form.passportExpiry,
+        previous_visa_application: form.previousVisaApplication, visa_outcome: form.visaOutcome,
+        highest_education: form.highestEducation, tertiary_education: form.tertiaryEducation,
+        current_employer: form.currentEmployer, current_start_date: form.currentStartDate,
+        current_contact_person: form.currentContactPerson, current_job_duties: form.currentJobDuties,
+        previous_employer: form.previousEmployer, previous_start_date: form.previousStartDate,
+        previous_end_date: form.previousEndDate, previous_contact_person: form.previousContactPerson,
+        previous_job_duties: form.previousJobDuties,
+        tractors: form.tractors, combines: form.combines,
+        tillage_cultivation: form.tillageCultivation, silage_haymaking: form.silageHaymaking,
+        sprayers: form.sprayers, other_farm_equipment: form.otherFarmEquipment,
+        earthmoving: form.earthmoving, trucks: form.trucks,
+        other_skills: form.otherSkills, mechanical_skills: form.mechanicalSkills,
+        livestock_farming: form.livestockFarming, crop_farming: form.cropFarming,
+        irrigation_farming: form.irrigationFarming,
+      });
+
+      if (dbError) {
+        setError('Account created but profile save failed: ' + dbError.message);
+        setLoading(false);
+        return;
+      }
+
+      // Upload documents and save URLs
+      const docUrls: Record<string, string | null> = {};
+      if (docs.photo) docUrls.doc_photo = await uploadFile(userId, 'photo', docs.photo);
+      if (docs.passport) docUrls.doc_passport = await uploadFile(userId, 'passport', docs.passport);
+      if (docs.idDoc) docUrls.doc_id = await uploadFile(userId, 'id', docs.idDoc);
+      if (docs.driversLicence) docUrls.doc_drivers_licence = await uploadFile(userId, 'drivers-licence', docs.driversLicence);
+      if (docs.criminalRecord) docUrls.doc_criminal_record = await uploadFile(userId, 'criminal-record', docs.criminalRecord);
+      if (docs.h2aVisas.length > 0) {
+        const urls: string[] = [];
+        for (const file of docs.h2aVisas) {
+          const url = await uploadFile(userId, 'h2a-visas', file);
+          if (url) urls.push(url);
+        }
+        docUrls.doc_h2a_visas = urls.join(',');
+      }
+
+      if (Object.keys(docUrls).length > 0) {
+        await supabase.from('candidates').update(docUrls).eq('id', userId);
+      }
+    }
+
+    setLoading(false);
     setSubmitted(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -118,6 +237,9 @@ export default function CandidateRegistration() {
           <p>
             Thank you for registering with NS Pinnacle Recruitment. Your personal agent
             will be in contact with you shortly.
+          </p>
+          <p>
+            You can <button className="link-btn-inline" onClick={() => navigate('/login')}>sign in to your profile</button> at any time to view or update your information.
           </p>
           <p>In the meantime, feel free to review our <a href="/faq">FAQ page</a>.</p>
         </div>
@@ -155,6 +277,8 @@ export default function CandidateRegistration() {
               <li>✓ Criminal record check from SAPS (mandatory)</li>
             </ul>
           </div>
+
+          {error && <div className="reg-error">{error}</div>}
 
           <form className="reg-form" onSubmit={handleSubmit}>
 
@@ -455,33 +579,51 @@ export default function CandidateRegistration() {
               <div className="form-grid form-grid-2">
                 <div className="form-group">
                   <label>Head &amp; Shoulder Photo *</label>
-                  <input type="file" accept="image/*" required />
+                  <input type="file" accept="image/*" required onChange={e => setDocs(d => ({ ...d, photo: e.target.files?.[0] ?? null }))} />
                 </div>
                 <div className="form-group">
                   <label>Passport Copy *</label>
-                  <input type="file" accept=".pdf,image/*" required />
+                  <input type="file" accept=".pdf,image/*" required onChange={e => setDocs(d => ({ ...d, passport: e.target.files?.[0] ?? null }))} />
                 </div>
                 <div className="form-group">
                   <label>ID Document *</label>
-                  <input type="file" accept=".pdf,image/*" required />
+                  <input type="file" accept=".pdf,image/*" required onChange={e => setDocs(d => ({ ...d, idDoc: e.target.files?.[0] ?? null }))} />
                 </div>
                 <div className="form-group">
                   <label>Commercial Driver's Licence (if applicable)</label>
-                  <input type="file" accept=".pdf,image/*" />
+                  <input type="file" accept=".pdf,image/*" onChange={e => setDocs(d => ({ ...d, driversLicence: e.target.files?.[0] ?? null }))} />
                 </div>
                 <div className="form-group">
                   <label>Previous H-2A Visa Copies (if applicable)</label>
-                  <input type="file" accept=".pdf,image/*" multiple />
+                  <input type="file" accept=".pdf,image/*" multiple onChange={e => setDocs(d => ({ ...d, h2aVisas: Array.from(e.target.files ?? []) }))} />
                 </div>
                 <div className="form-group">
                   <label>SAPS Criminal Record Check *</label>
-                  <input type="file" accept=".pdf,image/*" required />
+                  <input type="file" accept=".pdf,image/*" required onChange={e => setDocs(d => ({ ...d, criminalRecord: e.target.files?.[0] ?? null }))} />
+                </div>
+              </div>
+            </div>
+
+            {/* ── Account Password ── */}
+            <div className="form-section">
+              <h3 className="form-section-title">Create Your Account Password</h3>
+              <p className="form-hint">You will use this password to log in and manage your profile after submitting.</p>
+              <div className="form-grid form-grid-2">
+                <div className="form-group">
+                  <label>Password *</label>
+                  <input type="password" value={form.password} onChange={set('password')} required minLength={6} placeholder="Min. 6 characters" />
+                </div>
+                <div className="form-group">
+                  <label>Confirm Password *</label>
+                  <input type="password" value={form.confirmPassword} onChange={set('confirmPassword')} required minLength={6} placeholder="Repeat password" />
                 </div>
               </div>
             </div>
 
             <div className="form-submit">
-              <button type="submit" className="btn-submit">Send Application</button>
+              <button type="submit" className="btn-submit" disabled={loading}>
+                {loading ? 'Submitting...' : 'Send Application'}
+              </button>
             </div>
 
           </form>

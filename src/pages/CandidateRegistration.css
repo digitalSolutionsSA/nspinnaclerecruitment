@@ -239,6 +239,33 @@
 
 .reg-success a { color: #2e7d32; font-weight: 600; }
 
+.reg-error {
+  background: #ffeaea;
+  border: 1px solid #f5c6c6;
+  color: #c0392b;
+  border-radius: 6px;
+  padding: 0.8rem 1rem;
+  margin-bottom: 1.2rem;
+  font-size: 0.95rem;
+}
+
+.link-btn-inline {
+  background: none;
+  border: none;
+  color: #2e7d32;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: inherit;
+  text-decoration: underline;
+  font-family: inherit;
+  padding: 0;
+}
+
+.btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 @media (max-width: 640px) {
   .form-grid-2 { grid-template-columns: 1fr; }
   .form-section { padding: 20px; }
