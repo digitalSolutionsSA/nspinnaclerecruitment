@@ -158,6 +158,12 @@ export default function Profile() {
     } else {
       setSaveMsg('Profile saved successfully!');
       setTimeout(() => setSaveMsg(''), 3000);
+      // Notify management of profile update (fire-and-forget)
+      fetch('/.netlify/functions/notify-registration', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ _type: 'profile-update', ...profile, ...docUrls }),
+      }).catch(() => {});
     }
   };
 

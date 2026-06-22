@@ -8,6 +8,8 @@ import FAQ from './pages/FAQ';
 import CandidateRegistration from './pages/CandidateRegistration';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
+import AdminLogin from './pages/AdminLogin';
+import AdminDashboard from './pages/AdminDashboard';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -17,22 +19,31 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function AppRoutes() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      <Navbar />
-      <div style={{ flex: 1 }}>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/faq" element={<FAQ />} />
-          <Route path="/candidate-registration" element={<CandidateRegistration />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/profile" element={
-            <ProtectedRoute><Profile /></ProtectedRoute>
-          } />
-        </Routes>
-      </div>
-      <Footer />
-    </div>
+    <Routes>
+      {/* Admin routes — no Navbar/Footer */}
+      <Route path="/admin" element={<AdminLogin />} />
+      <Route path="/admin/dashboard" element={<AdminDashboard />} />
+
+      {/* Public site */}
+      <Route path="/*" element={
+        <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+          <Navbar />
+          <div style={{ flex: 1 }}>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/faq" element={<FAQ />} />
+              <Route path="/candidate-registration" element={<CandidateRegistration />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/profile" element={
+                <ProtectedRoute><Profile /></ProtectedRoute>
+              } />
+            </Routes>
+          </div>
+          <Footer />
+        </div>
+      } />
+    </Routes>
   );
 }
 

@@ -221,6 +221,13 @@ export default function CandidateRegistration() {
       if (Object.keys(docUrls).length > 0) {
         await supabase.from('candidates').update(docUrls).eq('id', userId);
       }
+
+      // Notify management via Resend (fire-and-forget, don't block on failure)
+      fetch('/.netlify/functions/notify-registration', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, ...docUrls }),
+      }).catch(() => {});
     }
 
     setLoading(false);
