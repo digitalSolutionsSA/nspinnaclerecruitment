@@ -43,6 +43,7 @@ export const handler: Handler = async (event) => {
   }
 
   const isUpdate = body._type === 'profile-update';
+  // _type is now always set; 'new-registration' or 'profile-update'
   const subject = isUpdate
     ? `Profile Updated — ${body.first_name ?? ''} ${body.last_name ?? ''}`.trim()
     : `New Registration — ${body.firstName ?? body.first_name ?? ''} ${body.lastName ?? body.last_name ?? ''}`.trim();
@@ -176,16 +177,103 @@ export const handler: Handler = async (event) => {
 </body>
 </html>`;
 
-  const { error } = await resend.emails.send({
+  // 1 — Email to management with full candidate details
+  const { error: mgmtError } = await resend.emails.send({
     from: FROM,
     to: TO,
     subject,
     html,
   });
 
-  if (error) {
-    console.error('Resend error:', error);
-    return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+  if (mgmtError) {
+    console.error('Resend management email error:', mgmtError);
+    return { statusCode: 500, body: JSON.stringify({ error: mgmtError.message }) };
+  }
+
+  // 2 — Confirmation email to the candidate
+  const candidateEmail = body.email ?? '';
+  if (candidateEmail) {
+    const candidateSubject = isUpdate
+      ? 'Your NS Pinnacle Recruit profile has been updated'
+      : 'Welcome to NS Pinnacle Recruit — Profile Created';
+
+    const firstName = f('firstName', 'first_name') || 'Candidate';
+
+    const candidateHtml = isUpdate ? `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f5f7fa;font-family:Arial,sans-serif">
+  <div style="max-width:600px;margin:32px auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">
+    <div style="background:#1b5e20;padding:28px 32px">
+      <h1 style="margin:0;color:#fff;font-size:22px">NS Pinnacle Recruit</h1>
+      <p style="margin:6px 0 0;color:#c8e6c9;font-size:14px">Profile Update Confirmation</p>
+    </div>
+    <div style="padding:32px">
+      <p style="font-size:16px;color:#333;margin:0 0 16px">Hi <strong>${firstName}</strong>,</p>
+      <p style="font-size:15px;color:#333;margin:0 0 16px">
+        Your NS Pinnacle Recruit profile has been successfully updated.
+      </p>
+      <p style="font-size:14px;color:#555;margin:0 0 24px">
+        Our team has been notified and will review your updated information. If you have any questions or did not make these changes, please contact us immediately.
+      </p>
+      <div style="background:#f0f8f0;border-left:4px solid #2e7d32;padding:16px 20px;border-radius:4px;margin-bottom:24px">
+        <p style="margin:0;font-size:14px;color:#1b5e20;font-weight:600">What happens next?</p>
+        <p style="margin:8px 0 0;font-size:14px;color:#333">Your personal agent at NS Pinnacle Recruit will review your profile and be in contact with you regarding your application status.</p>
+      </div>
+      <p style="font-size:13px;color:#888;margin:0">You can log in at any time to update your information further.</p>
+    </div>
+    <div style="background:#f0f4f8;padding:16px 32px;font-size:12px;color:#888;text-align:center">
+      NS Pinnacle Recruit · <a href="mailto:gauteng@nspinnaclerecruit.com" style="color:#2e7d32">gauteng@nspinnaclerecruit.com</a>
+    </div>
+  </div>
+</body>
+</html>` : `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f5f7fa;font-family:Arial,sans-serif">
+  <div style="max-width:600px;margin:32px auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">
+    <div style="background:#1b5e20;padding:28px 32px">
+      <h1 style="margin:0;color:#fff;font-size:22px">NS Pinnacle Recruit</h1>
+      <p style="margin:6px 0 0;color:#c8e6c9;font-size:14px">Welcome — Profile Successfully Created</p>
+    </div>
+    <div style="padding:32px">
+      <p style="font-size:16px;color:#333;margin:0 0 16px">Hi <strong>${firstName}</strong>,</p>
+      <p style="font-size:15px;color:#333;margin:0 0 16px">
+        Congratulations! Your NS Pinnacle Recruit profile has been successfully created.
+      </p>
+      <p style="font-size:14px;color:#555;margin:0 0 24px">
+        Thank you for taking the first step towards an exciting opportunity in the USA. Our team will review your application and your personal agent will be in contact with you shortly.
+      </p>
+      <div style="background:#f0f8f0;border-left:4px solid #2e7d32;padding:16px 20px;border-radius:4px;margin-bottom:24px">
+        <p style="margin:0;font-size:14px;color:#1b5e20;font-weight:600">What happens next?</p>
+        <ul style="margin:8px 0 0;padding-left:18px;font-size:14px;color:#333">
+          <li style="margin-bottom:6px">Our team will review your submitted documents and profile.</li>
+          <li style="margin-bottom:6px">Your personal NS Pinnacle agent will contact you directly.</li>
+          <li>You can log in at any time to update your profile or upload additional documents.</li>
+        </ul>
+      </div>
+      <p style="font-size:13px;color:#888;margin:0">If you have any questions in the meantime, feel free to reach out to us at <a href="mailto:gauteng@nspinnaclerecruit.com" style="color:#2e7d32">gauteng@nspinnaclerecruit.com</a>.</p>
+    </div>
+    <div style="background:#f0f4f8;padding:16px 32px;font-size:12px;color:#888;text-align:center">
+      NS Pinnacle Recruit · <a href="mailto:gauteng@nspinnaclerecruit.com" style="color:#2e7d32">gauteng@nspinnaclerecruit.com</a>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    const { error: candidateError } = await resend.emails.send({
+      from: FROM,
+      to: candidateEmail,
+      subject: candidateSubject,
+      html: candidateHtml,
+    });
+
+    if (candidateError) {
+      // Log but don't fail the request — management email already sent
+      console.error('Resend candidate email error:', candidateError);
+    }
   }
 
   return { statusCode: 200, body: JSON.stringify({ ok: true }) };

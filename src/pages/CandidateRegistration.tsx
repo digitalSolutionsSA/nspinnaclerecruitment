@@ -222,11 +222,11 @@ export default function CandidateRegistration() {
         await supabase.from('candidates').update(docUrls).eq('id', userId);
       }
 
-      // Notify management via Resend (fire-and-forget, don't block on failure)
+      // Notify management + send welcome email to candidate (fire-and-forget)
       fetch('/.netlify/functions/notify-registration', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, ...docUrls }),
+        body: JSON.stringify({ _type: 'new-registration', ...form, ...docUrls }),
       }).catch(() => {});
     }
 

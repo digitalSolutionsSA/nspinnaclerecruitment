@@ -142,29 +142,46 @@ export default function Profile() {
     setTimeout(() => setSaveMsg(''), 3000);
   };
 
+  const saveToDb = async () => {
+    const { error } = await supabase
+      .from('candidates')
+      .upsert({ id: user!.id, ...profile }, { onConflict: 'id' });
+    return error;
+  };
+
   const handleSave = async (e: FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setError('');
     setSaveMsg('');
-
-    const { error } = await supabase
-      .from('candidates')
-      .upsert({ id: user!.id, ...profile }, { onConflict: 'id' });
-
+    const error = await saveToDb();
     setSaving(false);
     if (error) {
       setError('Failed to save. Please try again.');
     } else {
-      setSaveMsg('Profile saved successfully!');
+      setSaveMsg('Changes saved!');
       setTimeout(() => setSaveMsg(''), 3000);
-      // Notify management of profile update (fire-and-forget)
-      fetch('/.netlify/functions/notify-registration', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ _type: 'profile-update', ...profile, ...docUrls }),
-      }).catch(() => {});
     }
+  };
+
+  const handleSaveAndExit = async () => {
+    setSaving(true);
+    setError('');
+    setSaveMsg('');
+    const error = await saveToDb();
+    if (error) {
+      setSaving(false);
+      setError('Failed to save. Please try again.');
+      return;
+    }
+    // Send emails to both management and candidate
+    fetch('/.netlify/functions/notify-registration', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ _type: 'profile-update', ...profile, ...docUrls }),
+    }).catch(() => {});
+    setSaving(false);
+    navigate('/');
   };
 
   const handleSignOut = async () => {
@@ -201,7 +218,17 @@ export default function Profile() {
               <div className="profile-email">{user?.email}</div>
             </div>
           </div>
-          <button className="btn-signout" onClick={handleSignOut}>Sign Out</button>
+          <div className="profile-header-actions">
+            <button
+              type="button"
+              className="btn-save-exit"
+              onClick={handleSaveAndExit}
+              disabled={saving}
+            >
+              {saving ? 'Saving…' : 'Save & Exit'}
+            </button>
+            <button className="btn-signout" onClick={handleSignOut}>Sign Out</button>
+          </div>
         </div>
 
         {error && <div className="profile-error">{error}</div>}
@@ -621,9 +648,17 @@ export default function Profile() {
               )}
               {activeTab !== 7 && (
                 <button type="submit" className="btn-save" disabled={saving}>
-                  {saving ? 'Saving...' : 'Save Changes'}
+                  {saving ? 'Saving…' : 'Save Changes'}
                 </button>
               )}
+              <button
+                type="button"
+                className="btn-save-exit"
+                onClick={handleSaveAndExit}
+                disabled={saving}
+              >
+                {saving ? 'Saving…' : 'Save & Exit'}
+              </button>
             </div>
           </div>
 
