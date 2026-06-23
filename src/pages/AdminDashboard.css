@@ -199,6 +199,15 @@
   max-width: 860px;
 }
 
+.detail-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .back-btn {
   background: none;
   border: none;
@@ -207,12 +216,26 @@
   font-weight: 600;
   cursor: pointer;
   padding: 0;
-  margin-bottom: 24px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 .back-btn:hover { text-decoration: underline; }
+
+.export-pdf-btn {
+  background: #1b5e20;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: .3px;
+  transition: background .2s;
+}
+.export-pdf-btn:hover:not(:disabled) { background: #2e7d32; }
+.export-pdf-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .detail-header {
   display: flex;

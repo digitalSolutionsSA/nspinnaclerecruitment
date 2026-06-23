@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import jsPDF from 'jspdf';
 import './AdminDashboard.css';
 
 interface Candidate {
@@ -59,12 +60,292 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+async function exportToPdf(c: Candidate) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageW = 210;
+  const margin = 18;
+  const colW = (pageW - margin * 2) / 2;
+  let y = 0;
+
+  // NS Pinnacle brand colours
+  const GREEN_DARK = '#1b5e20';
+  const GREEN      = '#2e7d32';
+  const GOLD       = '#c8a84b';
+  const GREY       = '#888888';
+  const LINE       = '#d4e8d4';
+
+  function hexToRgb(hex: string): [number, number, number] {
+    return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
+  }
+
+  // Fetch logo and convert to base64 data URL
+  let logoDataUrl: string | null = null;
+  try {
+    const res = await fetch('/images/ns-logo.png');
+    const blob = await res.blob();
+    logoDataUrl = await new Promise<string>(resolve => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.readAsDataURL(blob);
+    });
+  } catch { /* logo unavailable — skip it */ }
+
+  function checkPage(needed = 10) {
+    if (y + needed > 275) {
+      doc.addPage();
+      y = margin;
+    }
+  }
+
+  function drawHeader() {
+    // Green banner
+    doc.setFillColor(...hexToRgb(GREEN_DARK));
+    doc.rect(0, 0, pageW, 28, 'F');
+
+    // Gold accent stripe
+    doc.setFillColor(...hexToRgb(GOLD));
+    doc.rect(0, 28, pageW, 1.5, 'F');
+
+    // Logo (square, top-left of banner)
+    if (logoDataUrl) {
+      doc.addImage(logoDataUrl, 'PNG', margin, 2, 24, 24);
+    }
+
+    // Title text to the right of the logo
+    const textX = logoDataUrl ? margin + 28 : margin;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.setTextColor(255, 255, 255);
+    doc.text('NS Pinnacle Recruit', textX, 13);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...hexToRgb(GOLD));
+    doc.text('Candidate Profile', textX, 21);
+
+    y = 38;
+  }
+
+  function drawCandidateHeader() {
+    doc.setFillColor(240, 248, 240);
+    doc.roundedRect(margin, y, pageW - margin * 2, 22, 3, 3, 'F');
+    doc.setDrawColor(...hexToRgb(GREEN));
+    doc.setLineWidth(0.5);
+    doc.roundedRect(margin, y, pageW - margin * 2, 22, 3, 3, 'S');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.setTextColor(...hexToRgb(GREEN_DARK));
+    doc.text(`${c.first_name} ${c.last_name}`, margin + 4, y + 9);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...hexToRgb(GREY));
+    doc.text(`${c.email}   ·   Registered ${new Date(c.created_at).toLocaleDateString('en-ZA')}`, margin + 4, y + 17);
+    y += 28;
+  }
+
+  function drawSectionTitle(title: string) {
+    checkPage(14);
+    doc.setFillColor(...hexToRgb(GREEN));
+    doc.rect(margin, y, pageW - margin * 2, 7.5, 'F');
+    // Gold left accent bar
+    doc.setFillColor(...hexToRgb(GOLD));
+    doc.rect(margin, y, 3, 7.5, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(255, 255, 255);
+    doc.text(title.toUpperCase(), margin + 6, y + 5.2);
+    y += 11;
+  }
+
+  function drawFields(fields: { label: string; value: string | undefined }[]) {
+    const filled = fields.filter(f => f.value);
+    let col = 0;
+    let rowY = y;
+
+    for (const f of filled) {
+      checkPage(12);
+      const x = margin + col * colW;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(...hexToRgb(GREY));
+      doc.text(f.label.toUpperCase(), x, rowY + 4);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(34, 34, 34);
+      const lines = doc.splitTextToSize(f.value!, colW - 4);
+      doc.text(lines, x, rowY + 9);
+
+      if (col === 1 || filled.indexOf(f) === filled.length - 1) {
+        const lineH = Math.max(lines.length, 1) * 4.5;
+        rowY += 13 + (lineH > 4.5 ? lineH - 4.5 : 0);
+        col = 0;
+      } else {
+        col = 1;
+      }
+    }
+    y = rowY + 4;
+
+    doc.setDrawColor(...hexToRgb(LINE));
+    doc.setLineWidth(0.3);
+    doc.line(margin, y, pageW - margin, y);
+    y += 6;
+  }
+
+  function drawDocuments() {
+    drawSectionTitle('Uploaded Documents');
+    const docs: { label: string; url: string | undefined }[] = [
+      { label: 'Head & Shoulder Photo', url: c.doc_photo },
+      { label: 'Passport Copy', url: c.doc_passport },
+      { label: 'ID Document', url: c.doc_id },
+      { label: "Driver's Licence", url: c.doc_drivers_licence },
+      { label: 'SAPS Criminal Record Check', url: c.doc_criminal_record },
+    ];
+    const h2a = c.doc_h2a_visas
+      ? c.doc_h2a_visas.split(',').map((u, i) => ({ label: `H-2A Visa ${i + 1}`, url: u.trim() }))
+      : [];
+    [...docs, ...h2a].filter(d => d.url).forEach(d => {
+      checkPage(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(...hexToRgb(GREY));
+      doc.text(d.label.toUpperCase(), margin, y + 4);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...hexToRgb(GREEN));
+      const urlLines = doc.splitTextToSize(d.url!, pageW - margin * 2 - 2);
+      doc.text(urlLines, margin, y + 9);
+      y += 14 + (urlLines.length - 1) * 4;
+    });
+  }
+
+  function drawFooter() {
+    const totalPages = (doc as jsPDF & { internal: { getNumberOfPages(): number } }).internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      // Footer bar
+      doc.setFillColor(...hexToRgb(GREEN_DARK));
+      doc.rect(0, 285, pageW, 12, 'F');
+      doc.setFontSize(7.5);
+      doc.setTextColor(...hexToRgb(GOLD));
+      doc.text(`Generated ${new Date().toLocaleString('en-ZA')}`, margin, 292);
+      doc.text(`Page ${i} of ${totalPages}`, pageW - margin, 292, { align: 'right' });
+    }
+  }
+
+  drawHeader();
+  drawCandidateHeader();
+
+  drawSectionTitle('Personal Information');
+  drawFields([
+    { label: 'First Name', value: c.first_name },
+    { label: 'Last Name', value: c.last_name },
+    { label: 'Email', value: c.email },
+    { label: 'Contact Number', value: c.contact_number },
+    { label: 'ID Number', value: c.id_number },
+    { label: 'Age', value: c.age },
+    { label: 'Date of Birth', value: c.date_of_birth },
+    { label: 'Physical Address', value: c.physical_address },
+    { label: "Driver's Licence Code", value: c.driver_license_code },
+    { label: 'Social Security Number', value: c.social_security_number },
+  ]);
+
+  drawSectionTitle('Lifestyle & Health');
+  drawFields([
+    { label: 'Smoking', value: c.smoking },
+    { label: 'Alcohol', value: c.alcohol },
+    { label: 'English Proficient', value: c.english_proficient },
+    { label: 'Health Issues', value: c.health_issues },
+    { label: 'Criminal Record', value: c.criminal_record },
+  ]);
+
+  drawSectionTitle('Family Information');
+  drawFields([
+    { label: 'Marital Status', value: c.marital_status },
+    { label: 'USA Relatives', value: c.usa_relatives },
+    { label: 'Spouse Name', value: c.spouse_name },
+    { label: 'Spouse Contact', value: c.spouse_contact },
+    { label: 'Spouse Email', value: c.spouse_email },
+    { label: 'Spouse DOB', value: c.spouse_dob },
+    { label: 'Date of Marriage', value: c.date_of_marriage },
+  ]);
+
+  drawSectionTitle('Next of Kin');
+  drawFields([
+    { label: 'Full Name', value: c.nok_name },
+    { label: 'Relationship', value: c.nok_relationship },
+    { label: 'Contact Number', value: c.nok_contact },
+    { label: 'Email', value: c.nok_email },
+    { label: 'Physical Address', value: c.nok_address },
+  ]);
+
+  drawSectionTitle('Passport & Visa');
+  drawFields([
+    { label: 'Passport Number', value: c.passport_number },
+    { label: 'Passport Issued', value: c.passport_issued },
+    { label: 'Passport Expiry', value: c.passport_expiry },
+    { label: 'Previous Visa Application', value: c.previous_visa_application },
+    { label: 'Visa Outcome', value: c.visa_outcome },
+  ]);
+
+  drawSectionTitle('Education & Employment');
+  drawFields([
+    { label: 'Highest School Education', value: c.highest_education },
+    { label: 'Tertiary Education', value: c.tertiary_education },
+    { label: 'Current Employer', value: c.current_employer },
+    { label: 'Current Start Date', value: c.current_start_date },
+    { label: 'Current Contact Person', value: c.current_contact_person },
+    { label: 'Current Job Duties', value: c.current_job_duties },
+    { label: 'Previous Employer', value: c.previous_employer },
+    { label: 'Previous Start Date', value: c.previous_start_date },
+    { label: 'Previous End Date', value: c.previous_end_date },
+    { label: 'Previous Contact Person', value: c.previous_contact_person },
+    { label: 'Previous Job Duties', value: c.previous_job_duties },
+  ]);
+
+  drawSectionTitle('Equipment & Machinery Experience');
+  drawFields([
+    { label: 'Tractors', value: c.tractors },
+    { label: 'Combines / Harvesters', value: c.combines },
+    { label: 'Tillage / Cultivation', value: c.tillage_cultivation },
+    { label: 'Silage / Haymaking', value: c.silage_haymaking },
+    { label: 'Sprayers', value: c.sprayers },
+    { label: 'Other Farm Equipment', value: c.other_farm_equipment },
+    { label: 'Earthmoving Equipment', value: c.earthmoving },
+    { label: 'Trucks', value: c.trucks },
+  ]);
+
+  drawSectionTitle('Additional Skills');
+  drawFields([
+    { label: 'Other Skills', value: c.other_skills },
+    { label: 'Mechanical Skills', value: c.mechanical_skills },
+    { label: 'Livestock Farming', value: c.livestock_farming },
+    { label: 'Crop Farming', value: c.crop_farming },
+    { label: 'Irrigation Farming', value: c.irrigation_farming },
+  ]);
+
+  drawDocuments();
+  drawFooter();
+
+  doc.save(`NS-Pinnacle-${c.first_name}-${c.last_name}.pdf`);
+}
+
 function CandidateDetail({ c, onBack }: { c: Candidate; onBack: () => void }) {
   const h2aUrls = c.doc_h2a_visas ? c.doc_h2a_visas.split(',') : [];
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExport() {
+    setExporting(true);
+    try { await exportToPdf(c); } finally { setExporting(false); }
+  }
 
   return (
     <div className="candidate-detail">
-      <button className="back-btn" onClick={onBack}>← Back to list</button>
+      <div className="detail-top-bar">
+        <button className="back-btn" onClick={onBack}>← Back to list</button>
+        <button className="export-pdf-btn" onClick={handleExport} disabled={exporting}>
+          {exporting ? 'Generating…' : 'Export to PDF ↓'}
+        </button>
+      </div>
 
       <div className="detail-header">
         <div className="detail-avatar">{(c.first_name?.[0] ?? '?').toUpperCase()}</div>
