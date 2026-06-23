@@ -3,8 +3,8 @@ import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const TO = process.env.MANAGEMENT_EMAIL ?? 'gauteng@nspinnaclerecruit.com';
-const FROM = process.env.FROM_EMAIL ?? 'NS Pinnacle Recruit <noreply@nspinnaclerecruit.com>';
+const TO = process.env.MANAGEMENT_EMAIL ?? 'info@nspinnacle.co.za';
+const FROM = process.env.FROM_EMAIL ?? 'NS Pinnacle Recruit <noreply@nspinnacle.co.za>';
 
 function row(label: string, value: string | undefined) {
   if (!value) return '';
