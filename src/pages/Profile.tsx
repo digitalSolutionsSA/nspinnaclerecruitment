@@ -174,12 +174,14 @@ export default function Profile() {
       setError('Failed to save. Please try again.');
       return;
     }
-    // Send emails to both management and candidate
-    fetch('/.netlify/functions/notify-registration', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ _type: 'profile-update', ...profile, ...docUrls }),
-    }).catch(() => {});
+    // Send emails — await so the request isn't cancelled by navigation
+    try {
+      await fetch('/.netlify/functions/notify-registration', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ _type: 'profile-update', ...profile, ...docUrls }),
+      });
+    } catch { /* non-fatal — DB save already succeeded */ }
     setSaving(false);
     navigate('/');
   };
