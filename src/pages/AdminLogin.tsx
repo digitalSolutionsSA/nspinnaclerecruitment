@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 import './AdminLogin.css';
 
 export default function AdminLogin() {
@@ -14,17 +15,13 @@ export default function AdminLogin() {
     setError('');
     setLoading(true);
 
-    const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL ?? 'gauteng@nspinnaclerecruit.com';
-    const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD ?? 'Gauteng@ns81';
-    const ADMIN_TOKEN = import.meta.env.VITE_ADMIN_TOKEN ?? 'ns-admin-secret-2024';
+    const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
 
-    await new Promise(r => setTimeout(r, 400)); // brief delay for UX
-
-    if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-      sessionStorage.setItem('admin_token', ADMIN_TOKEN);
-      navigate('/admin/dashboard');
-    } else {
+    if (authError) {
       setError('Invalid email or password.');
+    } else {
+      sessionStorage.setItem('admin_token', 'ns-admin-secret-2024');
+      navigate('/admin/dashboard');
     }
 
     setLoading(false);
