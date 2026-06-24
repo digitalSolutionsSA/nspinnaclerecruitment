@@ -23,7 +23,8 @@ export default function AdminLogin() {
 
     const valid = ADMINS.some(a => a.email === email && a.password === password);
     if (valid) {
-      sessionStorage.setItem('admin_token', 'ns-admin-secret-2024');
+      const token = import.meta.env.VITE_ADMIN_TOKEN ?? 'ns-admin-secret-2024';
+      sessionStorage.setItem('admin_token', token);
       navigate('/admin/dashboard');
     } else {
       setError('Invalid email or password.');
