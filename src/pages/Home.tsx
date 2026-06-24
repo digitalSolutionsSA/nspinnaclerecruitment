@@ -150,6 +150,7 @@ export default function Home() {
                 <div className="why-agent">
                   <p className="why-agent-name">MRA White River Insurance Brokers</p>
                   <p>Tania Strydom — Bryte Travel Insurance</p>
+                  <p><a href="tel:0637336054">063 733 6054</a></p>
                 </div>
               </div>
             </div>
