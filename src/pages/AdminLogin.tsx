@@ -2,10 +2,10 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './AdminLogin.css';
 
-const ADMINS = [
-  { email: 'gauteng@nspinnaclerecruit.com', password: 'Gauteng@ns81' },
-  { email: 'manager@nspinnaclerecruit.com', password: 'ShaFra@310' },
-];
+const ADMIN_CREDENTIALS = (import.meta.env.VITE_ADMIN_CREDENTIALS ?? '')
+  .split(';')
+  .map((pair: string) => { const [email, password] = pair.split(':'); return { email, password }; })
+  .filter((a: { email: string; password: string }) => a.email && a.password);
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -21,7 +21,7 @@ export default function AdminLogin() {
 
     await new Promise(r => setTimeout(r, 400));
 
-    const valid = ADMINS.some(a => a.email === email && a.password === password);
+    const valid = ADMIN_CREDENTIALS.some((a: { email: string; password: string }) => a.email === email && a.password === password);
     if (valid) {
       const token = import.meta.env.VITE_ADMIN_TOKEN ?? 'ns-admin-secret-2024';
       sessionStorage.setItem('admin_token', token);
