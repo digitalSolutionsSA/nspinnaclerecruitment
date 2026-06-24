@@ -462,18 +462,23 @@ export default function AdminDashboard() {
     const ADMIN_TOKEN = import.meta.env.VITE_ADMIN_TOKEN ?? 'ns-admin-secret-2024';
     if (!token || token !== ADMIN_TOKEN) { navigate('/admin'); return; }
 
-    supabase
-      .from('candidates')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .then(({ data, error }) => {
-        if (error) { setError('Failed to load candidates: ' + error.message); }
+    fetch('/.netlify/functions/admin-candidates', {
+      headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) { setError('Failed to load candidates: ' + data.error); }
         else setCandidates(data ?? []);
+        setLoading(false);
+      })
+      .catch(err => {
+        setError('Failed to load candidates: ' + err.message);
         setLoading(false);
       });
   }, [navigate]);
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
     sessionStorage.removeItem('admin_token');
     navigate('/admin');
   };
