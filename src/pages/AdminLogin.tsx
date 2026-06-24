@@ -51,7 +51,7 @@ export default function AdminLogin() {
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              placeholder="management@nspinnaclerecruit.com"
+              placeholder="admin@example.com"
               required
               autoComplete="username"
             />
