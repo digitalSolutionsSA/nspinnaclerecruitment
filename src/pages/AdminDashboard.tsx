@@ -475,7 +475,7 @@ export default function AdminDashboard() {
 
   const handleSignOut = () => {
     sessionStorage.removeItem('admin_token');
-    navigate('/');
+    window.location.href = '/';
   };
 
   const filtered = candidates.filter(c => {
@@ -570,7 +570,7 @@ export default function AdminDashboard() {
                           {docCount} file{docCount !== 1 ? 's' : ''}
                         </span>
                       </td>
-                      <td><button className="view-btn" onClick={() => setSelected(c)}>View →</button></td>
+                      <td><button className="view-btn" onClick={e => { e.stopPropagation(); setSelected(c); }}>View →</button></td>
                     </tr>
                   );
                 })}
