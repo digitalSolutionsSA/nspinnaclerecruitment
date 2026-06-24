@@ -477,8 +477,7 @@ export default function AdminDashboard() {
       });
   }, [navigate]);
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
+  const handleSignOut = () => {
     sessionStorage.removeItem('admin_token');
     navigate('/admin');
   };
