@@ -106,17 +106,14 @@ const emptyDocs: DocFiles = {
   driversLicence: null, h2aVisas: [], criminalRecord: null,
 };
 
-// Fields and docs required for a complete profile
+// Everything beyond the 3 hard-required fields that makes a profile "complete"
 function checkCompleteness(form: FormData, docs: DocFiles): string[] {
   const missing: string[] = [];
-  if (!form.firstName) missing.push('First Name');
-  if (!form.lastName) missing.push('Last Name');
   if (!form.idNumber) missing.push('ID Number');
   if (!form.dateOfBirth) missing.push('Date of Birth');
   if (!form.physicalAddress) missing.push('Physical Address');
-  if (!form.contactNumber) missing.push('Contact Number');
-  if (!form.smoking) missing.push('Smoking (Yes/No/Vape)');
-  if (!form.alcohol) missing.push('Alcohol (Yes/No)');
+  if (!form.smoking) missing.push('Smoking (Yes / No / Vape)');
+  if (!form.alcohol) missing.push('Alcohol consumption (Yes / No)');
   if (!form.englishProficient) missing.push('English Proficiency');
   if (!form.maritalStatus) missing.push('Marital Status');
   if (!form.nokName) missing.push('Next of Kin – Full Name');
@@ -125,10 +122,10 @@ function checkCompleteness(form: FormData, docs: DocFiles): string[] {
   if (!form.passportNumber) missing.push('Passport Number');
   if (!form.passportIssued) missing.push('Passport Date Issued');
   if (!form.passportExpiry) missing.push('Passport Expiry Date');
-  if (!docs.photo) missing.push('Head & Shoulder Photo (document)');
-  if (!docs.passport) missing.push('Passport Copy (document)');
-  if (!docs.idDoc) missing.push('ID Document (document)');
-  if (!docs.criminalRecord) missing.push('SAPS Criminal Record Check (document)');
+  if (!docs.photo) missing.push('Head & Shoulder Photo');
+  if (!docs.passport) missing.push('Passport Copy');
+  if (!docs.idDoc) missing.push('ID Document');
+  if (!docs.criminalRecord) missing.push('SAPS Criminal Record Check');
   return missing;
 }
 
@@ -149,7 +146,6 @@ export default function CandidateRegistration() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [incompleteModal, setIncompleteModal] = useState<string[]>([]);
-  const [pendingSubmit, setPendingSubmit] = useState(false);
 
   const set = (field: keyof FormData) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -257,6 +253,18 @@ export default function CandidateRegistration() {
     e.preventDefault();
     setError('');
 
+    // Hard-required: these 3 fields must be present before anything else
+    if (!form.firstName || !form.lastName) {
+      setError('Please enter your first and last name.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    if (!form.contactNumber) {
+      setError('Please enter your contact number.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     if (form.password !== form.confirmPassword) {
       setError('Passwords do not match.');
       return;
@@ -269,7 +277,6 @@ export default function CandidateRegistration() {
     const missing = checkCompleteness(form, docs);
     if (missing.length > 0) {
       setIncompleteModal(missing);
-      setPendingSubmit(true);
       return;
     }
 
@@ -278,13 +285,11 @@ export default function CandidateRegistration() {
 
   const handleIncompleteConfirm = async () => {
     setIncompleteModal([]);
-    setPendingSubmit(false);
     await doSubmit(false);
   };
 
   const handleIncompleteCancel = () => {
     setIncompleteModal([]);
-    setPendingSubmit(false);
   };
 
   if (submitted) {
@@ -314,11 +319,11 @@ export default function CandidateRegistration() {
         <div className="incomplete-modal-overlay">
           <div className="incomplete-modal">
             <div className="incomplete-modal-icon">⚠️</div>
-            <h2>Profile Incomplete</h2>
+            <h2>Your Profile is Incomplete</h2>
             <p>
-              Your profile is missing the following required information. Incomplete profiles
-              <strong> will not be considered</strong> by NS Pinnacle Recruit until all
-              details and documents are provided.
+              The following information and/or documents are still missing from your profile.
+              <strong> Your application will not be considered by NS Pinnacle Recruit</strong> until
+              every item below has been provided.
             </p>
             <ul className="incomplete-modal-list">
               {incompleteModal.map(item => (
@@ -326,14 +331,15 @@ export default function CandidateRegistration() {
               ))}
             </ul>
             <p className="incomplete-modal-question">
-              Do you still want to save your incomplete profile? You can log in later to complete it.
+              You may save your profile now and log back in later to complete it — but please be
+              aware that it will remain inactive until fully complete.
             </p>
             <div className="incomplete-modal-actions">
               <button className="btn-go-back" onClick={handleIncompleteCancel} disabled={loading}>
-                Go Back &amp; Complete
+                Go Back &amp; Complete Now
               </button>
               <button className="btn-save-incomplete" onClick={handleIncompleteConfirm} disabled={loading}>
-                {loading ? 'Saving…' : 'Save Anyway'}
+                {loading ? 'Saving…' : 'I Understand — Save Anyway'}
               </button>
             </div>
           </div>
@@ -378,11 +384,11 @@ export default function CandidateRegistration() {
               <div className="form-grid form-grid-2">
                 <div className="form-group">
                   <label>First Name *</label>
-                  <input type="text" value={form.firstName} onChange={set('firstName')} required />
+                  <input type="text" value={form.firstName} onChange={set('firstName')} />
                 </div>
                 <div className="form-group">
                   <label>Last Name *</label>
-                  <input type="text" value={form.lastName} onChange={set('lastName')} required />
+                  <input type="text" value={form.lastName} onChange={set('lastName')} />
                 </div>
                 <div className="form-group">
                   <label>Email Address *</label>
@@ -390,27 +396,27 @@ export default function CandidateRegistration() {
                 </div>
                 <div className="form-group">
                   <label>Contact Number *</label>
-                  <input type="tel" value={form.contactNumber} onChange={set('contactNumber')} required />
+                  <input type="tel" value={form.contactNumber} onChange={set('contactNumber')} />
                 </div>
                 <div className="form-group">
-                  <label>ID Number *</label>
-                  <input type="text" value={form.idNumber} onChange={set('idNumber')} required />
+                  <label>ID Number</label>
+                  <input type="text" value={form.idNumber} onChange={set('idNumber')} />
                 </div>
                 <div className="form-group">
                   <label>Age</label>
                   <input type="number" value={form.age} onChange={set('age')} min="18" max="65" />
                 </div>
                 <div className="form-group">
-                  <label>Date of Birth *</label>
-                  <input type="date" value={form.dateOfBirth} onChange={set('dateOfBirth')} required />
+                  <label>Date of Birth</label>
+                  <input type="date" value={form.dateOfBirth} onChange={set('dateOfBirth')} />
                 </div>
                 <div className="form-group">
                   <label>SA / USA Driver's Licence Code</label>
                   <input type="text" value={form.driverLicenseCode} onChange={set('driverLicenseCode')} placeholder="e.g. Code 8, Code 10" />
                 </div>
                 <div className="form-group form-group-full">
-                  <label>Physical Address *</label>
-                  <input type="text" value={form.physicalAddress} onChange={set('physicalAddress')} required />
+                  <label>Physical Address</label>
+                  <input type="text" value={form.physicalAddress} onChange={set('physicalAddress')} />
                 </div>
                 <div className="form-group">
                   <label>Social Security Number (if applicable)</label>
@@ -505,16 +511,16 @@ export default function CandidateRegistration() {
               <h3 className="form-section-title">Next of Kin</h3>
               <div className="form-grid form-grid-2">
                 <div className="form-group">
-                  <label>Full Name *</label>
-                  <input type="text" value={form.nokName} onChange={set('nokName')} required />
+                  <label>Full Name</label>
+                  <input type="text" value={form.nokName} onChange={set('nokName')} />
                 </div>
                 <div className="form-group">
-                  <label>Relationship *</label>
-                  <input type="text" value={form.nokRelationship} onChange={set('nokRelationship')} placeholder="e.g. Mother, Brother" required />
+                  <label>Relationship</label>
+                  <input type="text" value={form.nokRelationship} onChange={set('nokRelationship')} placeholder="e.g. Mother, Brother" />
                 </div>
                 <div className="form-group">
-                  <label>Contact Number *</label>
-                  <input type="tel" value={form.nokContact} onChange={set('nokContact')} required />
+                  <label>Contact Number</label>
+                  <input type="tel" value={form.nokContact} onChange={set('nokContact')} />
                 </div>
                 <div className="form-group">
                   <label>Email Address</label>
@@ -532,16 +538,16 @@ export default function CandidateRegistration() {
               <h3 className="form-section-title">4. Passport &amp; Visa Information</h3>
               <div className="form-grid form-grid-2">
                 <div className="form-group">
-                  <label>Passport Number *</label>
-                  <input type="text" value={form.passportNumber} onChange={set('passportNumber')} required />
+                  <label>Passport Number</label>
+                  <input type="text" value={form.passportNumber} onChange={set('passportNumber')} />
                 </div>
                 <div className="form-group">
-                  <label>Passport Date Issued *</label>
-                  <input type="date" value={form.passportIssued} onChange={set('passportIssued')} required />
+                  <label>Passport Date Issued</label>
+                  <input type="date" value={form.passportIssued} onChange={set('passportIssued')} />
                 </div>
                 <div className="form-group">
-                  <label>Passport Expiry Date *</label>
-                  <input type="date" value={form.passportExpiry} onChange={set('passportExpiry')} required />
+                  <label>Passport Expiry Date</label>
+                  <input type="date" value={form.passportExpiry} onChange={set('passportExpiry')} />
                 </div>
               </div>
               <div className="form-grid form-grid-1">
@@ -668,15 +674,15 @@ export default function CandidateRegistration() {
               <h3 className="form-section-title">8. Document Uploads</h3>
               <div className="form-grid form-grid-2">
                 <div className="form-group">
-                  <label>Head &amp; Shoulder Photo *</label>
+                  <label>Head &amp; Shoulder Photo <span className="req-note">(required for complete profile)</span></label>
                   <input type="file" accept="image/*" onChange={e => setDocs(d => ({ ...d, photo: e.target.files?.[0] ?? null }))} />
                 </div>
                 <div className="form-group">
-                  <label>Passport Copy *</label>
+                  <label>Passport Copy <span className="req-note">(required for complete profile)</span></label>
                   <input type="file" accept=".pdf,image/*" onChange={e => setDocs(d => ({ ...d, passport: e.target.files?.[0] ?? null }))} />
                 </div>
                 <div className="form-group">
-                  <label>ID Document *</label>
+                  <label>ID Document <span className="req-note">(required for complete profile)</span></label>
                   <input type="file" accept=".pdf,image/*" onChange={e => setDocs(d => ({ ...d, idDoc: e.target.files?.[0] ?? null }))} />
                 </div>
                 <div className="form-group">
@@ -688,7 +694,7 @@ export default function CandidateRegistration() {
                   <input type="file" accept=".pdf,image/*" multiple onChange={e => setDocs(d => ({ ...d, h2aVisas: Array.from(e.target.files ?? []) }))} />
                 </div>
                 <div className="form-group">
-                  <label>SAPS Criminal Record Check *</label>
+                  <label>SAPS Criminal Record Check <span className="req-note">(required for complete profile)</span></label>
                   <input type="file" accept=".pdf,image/*" onChange={e => setDocs(d => ({ ...d, criminalRecord: e.target.files?.[0] ?? null }))} />
                 </div>
               </div>
@@ -711,7 +717,7 @@ export default function CandidateRegistration() {
             </div>
 
             <div className="form-submit">
-              <button type="submit" className="btn-submit" disabled={loading || pendingSubmit}>
+              <button type="submit" className="btn-submit" disabled={loading}>
                 {loading ? 'Submitting...' : 'Send Application'}
               </button>
             </div>
