@@ -266,6 +266,103 @@
   cursor: not-allowed;
 }
 
+/* ── Incomplete Profile Modal ── */
+.incomplete-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.incomplete-modal {
+  background: #fff;
+  border-radius: 12px;
+  max-width: 540px;
+  width: 100%;
+  padding: 36px 32px 28px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.incomplete-modal-icon {
+  font-size: 40px;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.incomplete-modal h2 {
+  font-size: 22px;
+  font-weight: 800;
+  color: #b85c00;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.incomplete-modal > p {
+  font-size: 14px;
+  color: #444;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+.incomplete-modal-list {
+  background: #fff8f0;
+  border: 1px solid #ffd49a;
+  border-radius: 8px;
+  padding: 14px 14px 14px 30px;
+  margin-bottom: 18px;
+  font-size: 13.5px;
+  color: #7a3a00;
+  line-height: 1.8;
+}
+
+.incomplete-modal-question {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.incomplete-modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btn-go-back {
+  background: #2e7d32;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 11px 22px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-go-back:hover { background: #1b5e20; }
+
+.btn-save-incomplete {
+  background: #fff;
+  color: #b85c00;
+  border: 2px solid #f0a050;
+  border-radius: 6px;
+  padding: 11px 22px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.btn-save-incomplete:hover { background: #fff4e8; }
+.btn-save-incomplete:disabled, .btn-go-back:disabled { opacity: 0.6; cursor: not-allowed; }
+
 @media (max-width: 640px) {
   .form-grid-2 { grid-template-columns: 1fr; }
   .form-section { padding: 20px; }

@@ -29,6 +29,7 @@ interface Candidate {
   crop_farming: string; irrigation_farming: string;
   doc_photo: string; doc_passport: string; doc_id: string;
   doc_drivers_licence: string; doc_h2a_visas: string; doc_criminal_record: string;
+  is_complete: boolean;
 }
 
 function Field({ label, value }: { label: string; value: string | undefined }) {
@@ -559,6 +560,9 @@ export default function AdminDashboard() {
                       <td className="td-name">
                         <div className="row-avatar">{(c.first_name?.[0] ?? '?').toUpperCase()}</div>
                         <span>{c.first_name} {c.last_name}</span>
+                        {!c.is_complete && (
+                          <span className="incomplete-badge" title="This profile is incomplete and will not be considered">Incomplete</span>
+                        )}
                       </td>
                       <td>{c.email}</td>
                       <td>{c.contact_number}</td>

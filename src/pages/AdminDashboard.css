@@ -180,6 +180,22 @@
 .doc-badge-ok { background: #e6f9ee; color: #1a7a3c; }
 .doc-badge-warn { background: #fff4e0; color: #b06000; }
 
+.incomplete-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #fde8e8;
+  color: #c0392b;
+  border: 1px solid #f5c6c6;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 .view-btn {
   background: none;
   border: 1.5px solid #1a4b8c;

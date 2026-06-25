@@ -106,6 +106,32 @@ const emptyDocs: DocFiles = {
   driversLicence: null, h2aVisas: [], criminalRecord: null,
 };
 
+// Fields and docs required for a complete profile
+function checkCompleteness(form: FormData, docs: DocFiles): string[] {
+  const missing: string[] = [];
+  if (!form.firstName) missing.push('First Name');
+  if (!form.lastName) missing.push('Last Name');
+  if (!form.idNumber) missing.push('ID Number');
+  if (!form.dateOfBirth) missing.push('Date of Birth');
+  if (!form.physicalAddress) missing.push('Physical Address');
+  if (!form.contactNumber) missing.push('Contact Number');
+  if (!form.smoking) missing.push('Smoking (Yes/No/Vape)');
+  if (!form.alcohol) missing.push('Alcohol (Yes/No)');
+  if (!form.englishProficient) missing.push('English Proficiency');
+  if (!form.maritalStatus) missing.push('Marital Status');
+  if (!form.nokName) missing.push('Next of Kin – Full Name');
+  if (!form.nokRelationship) missing.push('Next of Kin – Relationship');
+  if (!form.nokContact) missing.push('Next of Kin – Contact Number');
+  if (!form.passportNumber) missing.push('Passport Number');
+  if (!form.passportIssued) missing.push('Passport Date Issued');
+  if (!form.passportExpiry) missing.push('Passport Expiry Date');
+  if (!docs.photo) missing.push('Head & Shoulder Photo (document)');
+  if (!docs.passport) missing.push('Passport Copy (document)');
+  if (!docs.idDoc) missing.push('ID Document (document)');
+  if (!docs.criminalRecord) missing.push('SAPS Criminal Record Check (document)');
+  return missing;
+}
+
 async function uploadFile(userId: string, folder: string, file: File): Promise<string | null> {
   const ext = file.name.split('.').pop();
   const path = `${userId}/${folder}/${Date.now()}.${ext}`;
@@ -122,6 +148,8 @@ export default function CandidateRegistration() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [incompleteModal, setIncompleteModal] = useState<string[]>([]);
+  const [pendingSubmit, setPendingSubmit] = useState(false);
 
   const set = (field: keyof FormData) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -135,19 +163,8 @@ export default function CandidateRegistration() {
     onChange: () => setForm(prev => ({ ...prev, [field]: value })),
   });
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const doSubmit = async (isComplete: boolean) => {
     setError('');
-
-    if (form.password !== form.confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-    if (form.password.length < 6) {
-      setError('Password must be at least 6 characters.');
-      return;
-    }
-
     setLoading(true);
 
     const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -163,37 +180,38 @@ export default function CandidateRegistration() {
 
     const userId = authData.user?.id;
     if (userId) {
-      const { error: dbError } = await supabase.from('candidates').insert({
-        id: userId,
-        first_name: form.firstName, last_name: form.lastName,
-        email: form.email, id_number: form.idNumber, age: form.age,
-        date_of_birth: form.dateOfBirth, physical_address: form.physicalAddress,
-        contact_number: form.contactNumber, driver_license_code: form.driverLicenseCode,
-        social_security_number: form.socialSecurityNumber,
-        smoking: form.smoking, alcohol: form.alcohol,
-        english_proficient: form.englishProficient, health_issues: form.healthIssues,
-        criminal_record: form.criminalRecord, marital_status: form.maritalStatus,
-        spouse_name: form.spouseName, spouse_contact: form.spouseContact,
-        spouse_email: form.spouseEmail, spouse_dob: form.spouseDob,
-        date_of_marriage: form.dateOfMarriage, usa_relatives: form.usaRelatives,
-        nok_name: form.nokName, nok_relationship: form.nokRelationship,
-        nok_contact: form.nokContact, nok_email: form.nokEmail, nok_address: form.nokAddress,
-        passport_number: form.passportNumber, passport_issued: form.passportIssued,
-        passport_expiry: form.passportExpiry,
-        previous_visa_application: form.previousVisaApplication, visa_outcome: form.visaOutcome,
-        highest_education: form.highestEducation, tertiary_education: form.tertiaryEducation,
-        current_employer: form.currentEmployer, current_start_date: form.currentStartDate,
-        current_contact_person: form.currentContactPerson, current_job_duties: form.currentJobDuties,
-        previous_employer: form.previousEmployer, previous_start_date: form.previousStartDate,
-        previous_end_date: form.previousEndDate, previous_contact_person: form.previousContactPerson,
-        previous_job_duties: form.previousJobDuties,
-        tractors: form.tractors, combines: form.combines,
-        tillage_cultivation: form.tillageCultivation, silage_haymaking: form.silageHaymaking,
-        sprayers: form.sprayers, other_farm_equipment: form.otherFarmEquipment,
-        earthmoving: form.earthmoving, trucks: form.trucks,
-        other_skills: form.otherSkills, mechanical_skills: form.mechanicalSkills,
-        livestock_farming: form.livestockFarming, crop_farming: form.cropFarming,
-        irrigation_farming: form.irrigationFarming,
+      const { error: dbError } = await supabase.rpc('insert_candidate_profile', {
+        p_id: userId,
+        p_first_name: form.firstName, p_last_name: form.lastName,
+        p_email: form.email, p_id_number: form.idNumber, p_age: form.age,
+        p_date_of_birth: form.dateOfBirth || null, p_physical_address: form.physicalAddress,
+        p_contact_number: form.contactNumber, p_driver_license_code: form.driverLicenseCode,
+        p_social_security_number: form.socialSecurityNumber,
+        p_smoking: form.smoking, p_alcohol: form.alcohol,
+        p_english_proficient: form.englishProficient, p_health_issues: form.healthIssues,
+        p_criminal_record: form.criminalRecord, p_marital_status: form.maritalStatus,
+        p_spouse_name: form.spouseName, p_spouse_contact: form.spouseContact,
+        p_spouse_email: form.spouseEmail, p_spouse_dob: form.spouseDob || null,
+        p_date_of_marriage: form.dateOfMarriage || null, p_usa_relatives: form.usaRelatives,
+        p_nok_name: form.nokName, p_nok_relationship: form.nokRelationship,
+        p_nok_contact: form.nokContact, p_nok_email: form.nokEmail, p_nok_address: form.nokAddress,
+        p_passport_number: form.passportNumber, p_passport_issued: form.passportIssued || null,
+        p_passport_expiry: form.passportExpiry || null,
+        p_previous_visa_application: form.previousVisaApplication, p_visa_outcome: form.visaOutcome,
+        p_highest_education: form.highestEducation, p_tertiary_education: form.tertiaryEducation,
+        p_current_employer: form.currentEmployer, p_current_start_date: form.currentStartDate || null,
+        p_current_contact_person: form.currentContactPerson, p_current_job_duties: form.currentJobDuties,
+        p_previous_employer: form.previousEmployer, p_previous_start_date: form.previousStartDate || null,
+        p_previous_end_date: form.previousEndDate || null,
+        p_previous_contact_person: form.previousContactPerson, p_previous_job_duties: form.previousJobDuties,
+        p_tractors: form.tractors, p_combines: form.combines,
+        p_tillage_cultivation: form.tillageCultivation, p_silage_haymaking: form.silageHaymaking,
+        p_sprayers: form.sprayers, p_other_farm_equipment: form.otherFarmEquipment,
+        p_earthmoving: form.earthmoving, p_trucks: form.trucks,
+        p_other_skills: form.otherSkills, p_mechanical_skills: form.mechanicalSkills,
+        p_livestock_farming: form.livestockFarming, p_crop_farming: form.cropFarming,
+        p_irrigation_farming: form.irrigationFarming,
+        p_is_complete: isComplete,
       });
 
       if (dbError) {
@@ -235,6 +253,40 @@ export default function CandidateRegistration() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (form.password !== form.confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    if (form.password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+
+    const missing = checkCompleteness(form, docs);
+    if (missing.length > 0) {
+      setIncompleteModal(missing);
+      setPendingSubmit(true);
+      return;
+    }
+
+    await doSubmit(true);
+  };
+
+  const handleIncompleteConfirm = async () => {
+    setIncompleteModal([]);
+    setPendingSubmit(false);
+    await doSubmit(false);
+  };
+
+  const handleIncompleteCancel = () => {
+    setIncompleteModal([]);
+    setPendingSubmit(false);
+  };
+
   if (submitted) {
     return (
       <main className="reg-page">
@@ -256,6 +308,37 @@ export default function CandidateRegistration() {
 
   return (
     <main className="reg-page">
+
+      {/* Incomplete Profile Warning Modal */}
+      {incompleteModal.length > 0 && (
+        <div className="incomplete-modal-overlay">
+          <div className="incomplete-modal">
+            <div className="incomplete-modal-icon">⚠️</div>
+            <h2>Profile Incomplete</h2>
+            <p>
+              Your profile is missing the following required information. Incomplete profiles
+              <strong> will not be considered</strong> by NS Pinnacle Recruit until all
+              details and documents are provided.
+            </p>
+            <ul className="incomplete-modal-list">
+              {incompleteModal.map(item => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+            <p className="incomplete-modal-question">
+              Do you still want to save your incomplete profile? You can log in later to complete it.
+            </p>
+            <div className="incomplete-modal-actions">
+              <button className="btn-go-back" onClick={handleIncompleteCancel} disabled={loading}>
+                Go Back &amp; Complete
+              </button>
+              <button className="btn-save-incomplete" onClick={handleIncompleteConfirm} disabled={loading}>
+                {loading ? 'Saving…' : 'Save Anyway'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Page Hero */}
       <section className="page-hero">
@@ -586,15 +669,15 @@ export default function CandidateRegistration() {
               <div className="form-grid form-grid-2">
                 <div className="form-group">
                   <label>Head &amp; Shoulder Photo *</label>
-                  <input type="file" accept="image/*" required onChange={e => setDocs(d => ({ ...d, photo: e.target.files?.[0] ?? null }))} />
+                  <input type="file" accept="image/*" onChange={e => setDocs(d => ({ ...d, photo: e.target.files?.[0] ?? null }))} />
                 </div>
                 <div className="form-group">
                   <label>Passport Copy *</label>
-                  <input type="file" accept=".pdf,image/*" required onChange={e => setDocs(d => ({ ...d, passport: e.target.files?.[0] ?? null }))} />
+                  <input type="file" accept=".pdf,image/*" onChange={e => setDocs(d => ({ ...d, passport: e.target.files?.[0] ?? null }))} />
                 </div>
                 <div className="form-group">
                   <label>ID Document *</label>
-                  <input type="file" accept=".pdf,image/*" required onChange={e => setDocs(d => ({ ...d, idDoc: e.target.files?.[0] ?? null }))} />
+                  <input type="file" accept=".pdf,image/*" onChange={e => setDocs(d => ({ ...d, idDoc: e.target.files?.[0] ?? null }))} />
                 </div>
                 <div className="form-group">
                   <label>Commercial Driver's Licence (if applicable)</label>
@@ -606,7 +689,7 @@ export default function CandidateRegistration() {
                 </div>
                 <div className="form-group">
                   <label>SAPS Criminal Record Check *</label>
-                  <input type="file" accept=".pdf,image/*" required onChange={e => setDocs(d => ({ ...d, criminalRecord: e.target.files?.[0] ?? null }))} />
+                  <input type="file" accept=".pdf,image/*" onChange={e => setDocs(d => ({ ...d, criminalRecord: e.target.files?.[0] ?? null }))} />
                 </div>
               </div>
             </div>
@@ -628,7 +711,7 @@ export default function CandidateRegistration() {
             </div>
 
             <div className="form-submit">
-              <button type="submit" className="btn-submit" disabled={loading}>
+              <button type="submit" className="btn-submit" disabled={loading || pendingSubmit}>
                 {loading ? 'Submitting...' : 'Send Application'}
               </button>
             </div>
