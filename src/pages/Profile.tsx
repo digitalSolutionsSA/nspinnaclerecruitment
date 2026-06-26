@@ -60,13 +60,13 @@ const emptyDocs: DocUrls = {
   doc_drivers_licence: '', doc_h2a_visas: '', doc_criminal_record: '',
 };
 
-async function uploadDoc(userId: string, folder: string, file: File): Promise<string | null> {
+async function uploadDoc(userId: string, folder: string, file: File): Promise<{ url: string | null; error: string | null }> {
   const ext = file.name.split('.').pop();
   const path = `${userId}/${folder}/${Date.now()}.${ext}`;
   const { error } = await supabase.storage.from('candidate-documents').upload(path, file, { upsert: true });
-  if (error) return null;
+  if (error) return { url: null, error: error.message };
   const { data } = supabase.storage.from('candidate-documents').getPublicUrl(path);
-  return data.publicUrl;
+  return { url: data.publicUrl, error: null };
 }
 
 export default function Profile() {
@@ -127,12 +127,16 @@ export default function Profile() {
     multi = false
   ) => {
     setUploadingDoc(field);
-    const url = await uploadDoc(user!.id, folder, file);
-    if (!url) { setUploadingDoc(null); setError('Upload failed. Try again.'); return; }
+    const result = await uploadDoc(user!.id, folder, file);
+    if (!result.url) {
+      setUploadingDoc(null);
+      setError('Upload failed: ' + (result.error ?? 'Unknown error'));
+      return;
+    }
 
-    let newValue = url;
+    let newValue = result.url;
     if (multi && docUrls[field]) {
-      newValue = docUrls[field] + ',' + url;
+      newValue = docUrls[field] + ',' + result.url;
     }
 
     setDocUrls(prev => ({ ...prev, [field]: newValue }));

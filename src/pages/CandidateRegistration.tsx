@@ -129,13 +129,13 @@ function checkCompleteness(form: FormData, docs: DocFiles): string[] {
   return missing;
 }
 
-async function uploadFile(userId: string, folder: string, file: File): Promise<string | null> {
+async function uploadFile(userId: string, folder: string, file: File): Promise<{ url: string | null; error: string | null }> {
   const ext = file.name.split('.').pop();
   const path = `${userId}/${folder}/${Date.now()}.${ext}`;
   const { error } = await supabase.storage.from('candidate-documents').upload(path, file);
-  if (error) return null;
+  if (error) return { url: null, error: `${folder}: ${error.message}` };
   const { data } = supabase.storage.from('candidate-documents').getPublicUrl(path);
-  return data.publicUrl;
+  return { url: data.publicUrl, error: null };
 }
 
 export default function CandidateRegistration() {
@@ -172,6 +172,12 @@ export default function CandidateRegistration() {
       setError(authError.message);
       setLoading(false);
       return;
+    }
+
+    // If email confirmation is enabled, session is null after signUp.
+    // Explicitly set it so storage uploads are authenticated.
+    if (authData.session) {
+      await supabase.auth.setSession(authData.session);
     }
 
     const userId = authData.user?.id;
@@ -217,23 +223,39 @@ export default function CandidateRegistration() {
       }
 
       // Upload documents and save URLs
-      const docUrls: Record<string, string | null> = {};
-      if (docs.photo) docUrls.doc_photo = await uploadFile(userId, 'photo', docs.photo);
-      if (docs.passport) docUrls.doc_passport = await uploadFile(userId, 'passport', docs.passport);
-      if (docs.idDoc) docUrls.doc_id = await uploadFile(userId, 'id', docs.idDoc);
-      if (docs.driversLicence) docUrls.doc_drivers_licence = await uploadFile(userId, 'drivers-licence', docs.driversLicence);
-      if (docs.criminalRecord) docUrls.doc_criminal_record = await uploadFile(userId, 'criminal-record', docs.criminalRecord);
+      const docUrls: Record<string, string> = {};
+      const uploadErrors: string[] = [];
+
+      const tryUpload = async (key: string, folder: string, file: File) => {
+        const result = await uploadFile(userId, folder, file);
+        if (result.url) docUrls[key] = result.url;
+        else if (result.error) uploadErrors.push(result.error);
+      };
+
+      if (docs.photo) await tryUpload('doc_photo', 'photo', docs.photo);
+      if (docs.passport) await tryUpload('doc_passport', 'passport', docs.passport);
+      if (docs.idDoc) await tryUpload('doc_id', 'id', docs.idDoc);
+      if (docs.driversLicence) await tryUpload('doc_drivers_licence', 'drivers-licence', docs.driversLicence);
+      if (docs.criminalRecord) await tryUpload('doc_criminal_record', 'criminal-record', docs.criminalRecord);
       if (docs.h2aVisas.length > 0) {
         const urls: string[] = [];
         for (const file of docs.h2aVisas) {
-          const url = await uploadFile(userId, 'h2a-visas', file);
-          if (url) urls.push(url);
+          const result = await uploadFile(userId, 'h2a-visas', file);
+          if (result.url) urls.push(result.url);
+          else if (result.error) uploadErrors.push(result.error);
         }
-        docUrls.doc_h2a_visas = urls.join(',');
+        if (urls.length > 0) docUrls.doc_h2a_visas = urls.join(',');
+      }
+
+      if (uploadErrors.length > 0) {
+        setError('Some documents failed to upload: ' + uploadErrors.join('; ') + '. Please log in and update your profile to re-upload them.');
       }
 
       if (Object.keys(docUrls).length > 0) {
-        await supabase.from('candidates').update(docUrls).eq('id', userId);
+        const { error: updateError } = await supabase.from('candidates').update(docUrls).eq('id', userId);
+        if (updateError) {
+          setError(e => (e ? e + ' ' : '') + 'Document URLs could not be saved: ' + updateError.message);
+        }
       }
 
       // Notify management + send welcome email to candidate (fire-and-forget)
