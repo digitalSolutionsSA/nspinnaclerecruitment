@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import jsPDF from 'jspdf';
+import { PDFDocument, StandardFonts, rgb, type PDFFont } from 'pdf-lib';
 import './AdminDashboard.css';
 
 interface Candidate {
@@ -192,8 +193,7 @@ async function exportToPdf(c: Candidate) {
     y += 6;
   }
 
-  function drawDocuments() {
-    drawSectionTitle('Uploaded Documents');
+  function documentList(): { label: string; url: string | undefined }[] {
     const docs: { label: string; url: string | undefined }[] = [
       { label: 'Head & Shoulder Photo', url: c.doc_photo },
       { label: 'Passport Copy', url: c.doc_passport },
@@ -204,19 +204,34 @@ async function exportToPdf(c: Candidate) {
     const h2a = c.doc_h2a_visas
       ? c.doc_h2a_visas.split(',').map((u, i) => ({ label: `H-2A Visa ${i + 1}`, url: u.trim() }))
       : [];
-    [...docs, ...h2a].filter(d => d.url).forEach(d => {
-      checkPage(10);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      doc.setTextColor(...hexToRgb(GREY));
-      doc.text(d.label.toUpperCase(), margin, y + 4);
+    return [...docs, ...h2a].filter(d => d.url);
+  }
+
+  function drawDocuments() {
+    const docs = documentList();
+    drawSectionTitle('Uploaded Documents');
+    if (docs.length === 0) {
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
+      doc.setFontSize(9);
+      doc.setTextColor(...hexToRgb(GREY));
+      doc.text('No documents uploaded.', margin, y + 4);
+      y += 10;
+      return;
+    }
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...hexToRgb(GREY));
+    doc.text('Full copies of the documents below are attached on the following pages.', margin, y + 3);
+    y += 8;
+    docs.forEach(d => {
+      checkPage(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
       doc.setTextColor(...hexToRgb(GREEN));
-      const urlLines = doc.splitTextToSize(d.url!, pageW - margin * 2 - 2);
-      doc.text(urlLines, margin, y + 9);
-      y += 14 + (urlLines.length - 1) * 4;
+      doc.text(`•  ${d.label}`, margin, y + 4);
+      y += 7;
     });
+    y += 4;
   }
 
   function drawFooter() {
@@ -324,19 +339,156 @@ async function exportToPdf(c: Candidate) {
     { label: 'Irrigation Farming', value: c.irrigation_farming },
   ]);
 
+  const docs = documentList();
   drawDocuments();
   drawFooter();
 
-  doc.save(`NS-Pinnacle-${c.first_name}-${c.last_name}.pdf`);
+  // Merge the actual uploaded documents (images/PDFs) in as full pages
+  const finalPdf = await PDFDocument.load(doc.output('arraybuffer'));
+  const labelFont = await finalPdf.embedFont(StandardFonts.HelveticaBold);
+  const [GREEN_R, GREEN_G, GREEN_B] = hexToRgb(GREEN_DARK).map(v => v / 255);
+  const [GOLD_R, GOLD_G, GOLD_B] = hexToRgb(GOLD).map(v => v / 255);
+
+  for (const d of docs) {
+    await appendDocumentPages(finalPdf, labelFont, d.label, d.url!, {
+      GREEN_R, GREEN_G, GREEN_B, GOLD_R, GOLD_G, GOLD_B,
+    });
+  }
+
+  const mergedBytes = await finalPdf.save();
+  const blob = new Blob([mergedBytes as BlobPart], { type: 'application/pdf' });
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = `NS-Pinnacle-${c.first_name}-${c.last_name}.pdf`;
+  a.click();
+  URL.revokeObjectURL(blobUrl);
 }
 
-function CandidateDetail({ c, onBack }: { c: Candidate; onBack: () => void }) {
+async function appendDocumentPages(
+  finalPdf: PDFDocument,
+  labelFont: PDFFont,
+  label: string,
+  url: string,
+  colors: { GREEN_R: number; GREEN_G: number; GREEN_B: number; GOLD_R: number; GOLD_G: number; GOLD_B: number },
+) {
+  const A4: [number, number] = [595.28, 841.89];
+
+  function drawLabelBanner(page: ReturnType<PDFDocument['addPage']>, text: string) {
+    const { width } = page.getSize();
+    page.drawRectangle({ x: 0, y: page.getHeight() - 26, width, height: 26, color: rgb(colors.GREEN_R, colors.GREEN_G, colors.GREEN_B) });
+    page.drawRectangle({ x: 0, y: page.getHeight() - 27.5, width, height: 1.5, color: rgb(colors.GOLD_R, colors.GOLD_G, colors.GOLD_B) });
+    page.drawText(text.toUpperCase(), {
+      x: 18,
+      y: page.getHeight() - 17,
+      size: 10,
+      font: labelFont,
+      color: rgb(1, 1, 1),
+    });
+  }
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const bytes = await res.arrayBuffer();
+    const ext = (url.split('?')[0].split('.').pop() ?? '').toLowerCase();
+
+    if (ext === 'pdf') {
+      const srcPdf = await PDFDocument.load(bytes, { ignoreEncryption: true });
+      const copiedPages = await finalPdf.copyPages(srcPdf, srcPdf.getPageIndices());
+      copiedPages.forEach((p, i) => {
+        finalPdf.addPage(p);
+        if (i === 0) drawLabelBanner(p, label);
+      });
+    } else {
+      const image = ext === 'png' ? await finalPdf.embedPng(bytes) : await finalPdf.embedJpg(bytes);
+      const page = finalPdf.addPage(A4);
+      const margin = 30;
+      const topOffset = 40; // leave room for the label banner
+      const maxW = A4[0] - margin * 2;
+      const maxH = A4[1] - margin - topOffset;
+      const scale = Math.min(maxW / image.width, maxH / image.height, 1);
+      const w = image.width * scale;
+      const h = image.height * scale;
+      page.drawImage(image, { x: (A4[0] - w) / 2, y: (A4[1] - topOffset - h) / 2, width: w, height: h });
+      drawLabelBanner(page, label);
+    }
+  } catch {
+    // Document couldn't be fetched/embedded — add a fallback page noting the issue
+    const page = finalPdf.addPage(A4);
+    drawLabelBanner(page, label);
+    page.drawText('This document could not be embedded automatically.', { x: 30, y: A4[1] - 70, size: 11, font: labelFont });
+    page.drawText('View or download it directly at:', { x: 30, y: A4[1] - 90, size: 10, font: labelFont });
+    page.drawText(url, { x: 30, y: A4[1] - 108, size: 8, font: labelFont, color: rgb(colors.GREEN_R, colors.GREEN_G, colors.GREEN_B) });
+  }
+}
+
+type DocField = 'doc_photo' | 'doc_passport' | 'doc_id' | 'doc_drivers_licence' | 'doc_criminal_record' | 'doc_h2a_visas';
+
+const DOC_TYPES: { label: string; field: DocField; folder: string; accept: string }[] = [
+  { label: 'Head & Shoulder Photo', field: 'doc_photo', folder: 'photo', accept: 'image/*' },
+  { label: 'Passport Copy', field: 'doc_passport', folder: 'passport', accept: '.pdf,image/*' },
+  { label: 'ID Document', field: 'doc_id', folder: 'id', accept: '.pdf,image/*' },
+  { label: "Driver's Licence", field: 'doc_drivers_licence', folder: 'drivers-licence', accept: '.pdf,image/*' },
+  { label: 'SAPS Criminal Record Check', field: 'doc_criminal_record', folder: 'criminal-record', accept: '.pdf,image/*' },
+];
+
+async function uploadDocForCandidate(
+  candidateId: string,
+  folder: string,
+  field: DocField,
+  file: File,
+  multi = false,
+): Promise<string> {
+  const token = sessionStorage.getItem('admin_token') ?? '';
+
+  const signRes = await fetch('/.netlify/functions/admin-upload-doc', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ action: 'sign', candidateId, folder, filename: file.name }),
+  });
+  if (!signRes.ok) throw new Error((await signRes.json().catch(() => null))?.error ?? 'Failed to get upload URL');
+  const { path, token: uploadToken } = await signRes.json();
+
+  const { error: uploadError } = await supabase.storage
+    .from('candidate-documents')
+    .uploadToSignedUrl(path, uploadToken, file);
+  if (uploadError) throw new Error(uploadError.message);
+
+  const { data } = supabase.storage.from('candidate-documents').getPublicUrl(path);
+
+  const commitRes = await fetch('/.netlify/functions/admin-upload-doc', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ action: 'commit', candidateId, field, url: data.publicUrl, multi }),
+  });
+  if (!commitRes.ok) throw new Error((await commitRes.json().catch(() => null))?.error ?? 'Failed to save document reference');
+  const { value } = await commitRes.json();
+  return value as string;
+}
+
+function CandidateDetail({ c, onBack, onUpdate }: { c: Candidate; onBack: () => void; onUpdate: (updated: Candidate) => void }) {
   const h2aUrls = c.doc_h2a_visas ? c.doc_h2a_visas.split(',') : [];
   const [exporting, setExporting] = useState(false);
+  const [uploadingField, setUploadingField] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState('');
 
   async function handleExport() {
     setExporting(true);
     try { await exportToPdf(c); } finally { setExporting(false); }
+  }
+
+  async function handleUpload(folder: string, field: DocField, file: File, multi = false) {
+    setUploadingField(field);
+    setUploadError('');
+    try {
+      const newValue = await uploadDocForCandidate(c.id, folder, field, file, multi);
+      onUpdate({ ...c, [field]: newValue });
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploadingField(null);
+    }
   }
 
   return (
@@ -446,6 +598,66 @@ function CandidateDetail({ c, onBack }: { c: Candidate; onBack: () => void }) {
         ))}
         <DocLink label="SAPS Criminal Record Check" url={c.doc_criminal_record} />
       </Section>
+
+      <div className="detail-section">
+        <h3 className="detail-section-title">Upload Documents (Admin)</h3>
+        {uploadError && <div className="admin-upload-error">{uploadError}</div>}
+        <div className="admin-upload-grid">
+          {DOC_TYPES.map(({ label, field, folder, accept }) => (
+            <div key={field} className="admin-upload-item">
+              <div className="admin-upload-header">
+                <span className="admin-upload-label">{label}</span>
+                {c[field] && (
+                  <a href={c[field] as string} target="_blank" rel="noopener noreferrer" className="admin-upload-view">
+                    View current ↗
+                  </a>
+                )}
+              </div>
+              <div className={`admin-upload-status ${c[field] ? 'uploaded' : 'missing'}`}>
+                {c[field] ? '✓ Uploaded' : '✗ Not uploaded'}
+              </div>
+              <label className="admin-upload-btn">
+                {uploadingField === field ? 'Uploading…' : c[field] ? 'Replace file' : 'Upload file'}
+                <input
+                  type="file"
+                  accept={accept}
+                  style={{ display: 'none' }}
+                  disabled={uploadingField !== null}
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) handleUpload(folder, field, file);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+            </div>
+          ))}
+
+          <div className="admin-upload-item">
+            <div className="admin-upload-header">
+              <span className="admin-upload-label">H-2A Visa Copies</span>
+              {h2aUrls.length > 0 && <span className="admin-upload-count">{h2aUrls.length} file(s)</span>}
+            </div>
+            <div className={`admin-upload-status ${h2aUrls.length ? 'uploaded' : 'missing'}`}>
+              {h2aUrls.length ? '✓ Uploaded' : '✗ Not uploaded'}
+            </div>
+            <label className="admin-upload-btn">
+              {uploadingField === 'doc_h2a_visas' ? 'Uploading…' : 'Add visa file'}
+              <input
+                type="file"
+                accept=".pdf,image/*"
+                style={{ display: 'none' }}
+                disabled={uploadingField !== null}
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) handleUpload('h2a-visas', 'doc_h2a_visas', file, true);
+                  e.target.value = '';
+                }}
+              />
+            </label>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -497,7 +709,14 @@ export default function AdminDashboard() {
           <button className="admin-signout" onClick={handleSignOut}>Sign Out</button>
         </header>
         <main className="admin-main">
-          <CandidateDetail c={selected} onBack={() => setSelected(null)} />
+          <CandidateDetail
+            c={selected}
+            onBack={() => setSelected(null)}
+            onUpdate={updated => {
+              setSelected(updated);
+              setCandidates(prev => prev.map(x => (x.id === updated.id ? updated : x)));
+            }}
+          />
         </main>
       </div>
     );
