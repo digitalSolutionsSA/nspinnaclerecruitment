@@ -436,9 +436,13 @@ async function appendDocumentPages(
     // Falls back to a direct fetch so local dev (vite dev, no proxy) still works.
     const token = sessionStorage.getItem('admin_token') ?? '';
     const proxyUrl = `/.netlify/functions/proxy-doc?url=${encodeURIComponent(url)}`;
-    let res = await fetch(proxyUrl, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) {
-      // Proxy unavailable (local dev) — try the Supabase URL directly
+    let res: Response | null = null;
+    try {
+      res = await fetch(proxyUrl, { headers: { Authorization: `Bearer ${token}` } });
+    } catch {
+      // Proxy not available (local dev) — will try direct fetch below
+    }
+    if (!res || !res.ok) {
       res = await fetch(url);
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
