@@ -455,18 +455,34 @@ async function appendDocumentPages(
     const isPdf = contentType.includes('pdf') || (!contentType && ext === 'pdf');
     const isPng = contentType.includes('png') || (!contentType && ext === 'png');
 
+    let embedded = false;
+
     if (isPdf) {
-      const srcPdf = await PDFDocument.load(bytes, { ignoreEncryption: true });
-      const copiedPages = await finalPdf.copyPages(srcPdf, srcPdf.getPageIndices());
-      copiedPages.forEach((p, i) => {
-        finalPdf.addPage(p);
-        if (i === 0) drawLabelBanner(p, label);
-      });
-    } else {
-      const image = isPng ? await finalPdf.embedPng(bytes) : await finalPdf.embedJpg(bytes);
+      try {
+        const srcPdf = await PDFDocument.load(bytes, { ignoreEncryption: true });
+        const copiedPages = await finalPdf.copyPages(srcPdf, srcPdf.getPageIndices());
+        copiedPages.forEach((p, i) => {
+          finalPdf.addPage(p);
+          if (i === 0) drawLabelBanner(p, label);
+        });
+        embedded = true;
+      } catch {
+        // PDF parse failed — bytes are probably an image with a wrong/missing
+        // content-type header. Fall through and try image embedding below.
+      }
+    }
+
+    if (!embedded) {
+      // Try JPEG first (most common for phone/scanner uploads), then PNG.
+      let image;
+      try {
+        image = await finalPdf.embedJpg(bytes);
+      } catch {
+        image = await finalPdf.embedPng(bytes);
+      }
       const page = finalPdf.addPage(A4);
       const margin = 30;
-      const topOffset = 40; // leave room for the label banner
+      const topOffset = 40;
       const maxW = A4[0] - margin * 2;
       const maxH = A4[1] - margin - topOffset;
       const scale = Math.min(maxW / image.width, maxH / image.height, 1);
