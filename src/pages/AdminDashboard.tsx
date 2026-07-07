@@ -433,9 +433,14 @@ async function appendDocumentPages(
   try {
     // Fetch via a server-side proxy to avoid CORS restrictions on Supabase
     // storage URLs when the request comes from a browser on the Netlify domain.
+    // Falls back to a direct fetch so local dev (vite dev, no proxy) still works.
     const token = sessionStorage.getItem('admin_token') ?? '';
     const proxyUrl = `/.netlify/functions/proxy-doc?url=${encodeURIComponent(url)}`;
-    const res = await fetch(proxyUrl, { headers: { Authorization: `Bearer ${token}` } });
+    let res = await fetch(proxyUrl, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) {
+      // Proxy unavailable (local dev) — try the Supabase URL directly
+      res = await fetch(url);
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const contentType = res.headers.get('content-type') ?? '';
     const bytes = await res.arrayBuffer();

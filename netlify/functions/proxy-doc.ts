@@ -1,4 +1,6 @@
 import type { Handler } from '@netlify/functions';
+import https from 'https';
+import http from 'http';
 
 function isAuthorized(event: Parameters<Handler>[0]): boolean {
   const token = event.headers['authorization']?.replace('Bearer ', '');
@@ -7,6 +9,26 @@ function isAuthorized(event: Parameters<Handler>[0]): boolean {
     process.env.VITE_ADMIN_TOKEN ?? 'ns-admin-secret-2024',
   ];
   return !!token && validTokens.includes(token);
+}
+
+function fetchBytes(url: string): Promise<{ status: number; contentType: string; buffer: Buffer }> {
+  return new Promise((resolve, reject) => {
+    const client = url.startsWith('https') ? https : http;
+    const req = client.get(url, (res) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (chunk: Buffer) => chunks.push(chunk));
+      res.on('end', () =>
+        resolve({
+          status: res.statusCode ?? 0,
+          contentType: res.headers['content-type'] ?? '',
+          buffer: Buffer.concat(chunks),
+        })
+      );
+      res.on('error', reject);
+    });
+    req.on('error', reject);
+    req.end();
+  });
 }
 
 export const handler: Handler = async (event) => {
@@ -22,25 +44,20 @@ export const handler: Handler = async (event) => {
     return { statusCode: 400, body: 'Missing url parameter' };
   }
 
-  // Only allow fetching from our Supabase storage bucket
   if (!url.startsWith('https://') || !url.includes('supabase.co')) {
     return { statusCode: 403, body: 'Forbidden: only Supabase storage URLs allowed' };
   }
 
   try {
-    const res = await fetch(url);
-    if (!res.ok) {
-      return { statusCode: res.status, body: `Upstream error: ${res.status} ${res.statusText}` };
+    const { status, contentType, buffer } = await fetchBytes(url);
+    if (status < 200 || status >= 300) {
+      return { statusCode: status, body: `Upstream error: ${status}` };
     }
-
-    const contentType = res.headers.get('content-type') ?? 'application/octet-stream';
-    const buffer = await res.arrayBuffer();
-    const base64 = Buffer.from(buffer).toString('base64');
 
     return {
       statusCode: 200,
-      headers: { 'Content-Type': contentType },
-      body: base64,
+      headers: { 'Content-Type': contentType || 'application/octet-stream' },
+      body: buffer.toString('base64'),
       isBase64Encoded: true,
     };
   } catch (err) {
