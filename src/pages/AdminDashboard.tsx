@@ -472,22 +472,50 @@ async function appendDocumentPages(
     }
 
     if (!embedded) {
-      // Try JPEG first (most common for phone/scanner uploads), then PNG.
+      // Try direct JPEG embed, then PNG, then canvas-convert (handles HEIC /
+      // WebP / any other format the browser can decode natively).
       let image;
-      try {
-        image = await finalPdf.embedJpg(bytes);
-      } catch {
-        image = await finalPdf.embedPng(bytes);
+
+      try { image = await finalPdf.embedJpg(bytes); } catch { /* not JPEG */ }
+
+      if (!image) {
+        try { image = await finalPdf.embedPng(bytes); } catch { /* not PNG */ }
       }
+
+      if (!image) {
+        // Canvas path: let the browser decode the file (covers HEIC on
+        // iOS/macOS, WebP, etc.) then re-encode to JPEG for pdf-lib.
+        const blob = new Blob([bytes], { type: contentType || 'image/jpeg' });
+        const blobUrl = URL.createObjectURL(blob);
+        try {
+          const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const el = new Image();
+            el.onload = () => resolve(el);
+            el.onerror = () => reject(new Error('Browser could not decode image'));
+            el.src = blobUrl;
+          });
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          canvas.getContext('2d')!.drawImage(img, 0, 0);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+          const b64 = dataUrl.split(',')[1];
+          const jpegBuf = Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer;
+          image = await finalPdf.embedJpg(jpegBuf);
+        } finally {
+          URL.revokeObjectURL(blobUrl);
+        }
+      }
+
       const page = finalPdf.addPage(A4);
       const margin = 30;
       const topOffset = 40;
       const maxW = A4[0] - margin * 2;
       const maxH = A4[1] - margin - topOffset;
-      const scale = Math.min(maxW / image.width, maxH / image.height, 1);
-      const w = image.width * scale;
-      const h = image.height * scale;
-      page.drawImage(image, { x: (A4[0] - w) / 2, y: (A4[1] - topOffset - h) / 2, width: w, height: h });
+      const scale = Math.min(maxW / image!.width, maxH / image!.height, 1);
+      const w = image!.width * scale;
+      const h = image!.height * scale;
+      page.drawImage(image!, { x: (A4[0] - w) / 2, y: (A4[1] - topOffset - h) / 2, width: w, height: h });
       drawLabelBanner(page, label);
     }
   } catch (err) {
