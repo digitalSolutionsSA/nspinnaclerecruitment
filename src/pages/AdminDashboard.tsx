@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import jsPDF from 'jspdf';
-import { PDFDocument, StandardFonts, rgb, type PDFFont } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, PDFName, PDFString, type PDFFont } from 'pdf-lib';
 import './AdminDashboard.css';
 
 interface Candidate {
@@ -525,20 +525,36 @@ async function appendDocumentPages(
     console.error(`Failed to embed document "${label}":`, err);
     const page = finalPdf.addPage(A4);
     drawLabelBanner(page, label);
-    page.drawText('This document could not be embedded automatically.', { x: 30, y: A4[1] - 70, size: 11, font: labelFont });
-    page.drawText('View or download it directly at:', { x: 30, y: A4[1] - 90, size: 10, font: labelFont });
-    page.drawText(url, { x: 30, y: A4[1] - 108, size: 8, font: labelFont, color: rgb(colors.GREEN_R, colors.GREEN_G, colors.GREEN_B) });
+    page.drawText('This document could not be embedded automatically.', { x: 30, y: A4[1] - 70, size: 11, font: labelFont, color: rgb(0.1, 0.1, 0.1) });
+    page.drawText('The file may be in HEIC format. Please re-upload as JPEG or PDF.', { x: 30, y: A4[1] - 86, size: 9, font: labelFont, color: rgb(0.5, 0.5, 0.5) });
+    page.drawText('Tap / click to open the document directly:', { x: 30, y: A4[1] - 108, size: 10, font: labelFont, color: rgb(0.1, 0.1, 0.1) });
+    // Truncate URL for display only — the annotation carries the full URL
+    const displayUrl = url.length > 90 ? url.slice(0, 87) + '…' : url;
+    page.drawText(displayUrl, { x: 30, y: A4[1] - 124, size: 8, font: labelFont, color: rgb(colors.GREEN_R, colors.GREEN_G, colors.GREEN_B) });
+    // Clickable hyperlink annotation over the URL text
+    const linkAnnot = finalPdf.context.obj({
+      Type: 'Annot', Subtype: 'Link',
+      Rect: [30, A4[1] - 132, A4[0] - 30, A4[1] - 114],
+      Border: [0, 0, 0],
+      A: finalPdf.context.obj({ Type: 'Action', S: 'URI', URI: PDFString.of(url) }),
+    });
+    page.node.set(PDFName.of('Annots'), finalPdf.context.obj([linkAnnot]));
   }
 }
 
 type DocField = 'doc_photo' | 'doc_passport' | 'doc_id' | 'doc_drivers_licence' | 'doc_criminal_record' | 'doc_h2a_visas';
 
+// HEIC/HEIF excluded — pdf-lib cannot embed them and most Windows browsers
+// lack the codec to canvas-convert them. Accepted: JPEG, PNG, PDF only.
+const ACCEPTED_IMAGES = 'image/jpeg,image/png';
+const ACCEPTED_DOCS = `application/pdf,${ACCEPTED_IMAGES}`;
+
 const DOC_TYPES: { label: string; field: DocField; folder: string; accept: string }[] = [
-  { label: 'Head & Shoulder Photo', field: 'doc_photo', folder: 'photo', accept: 'image/*' },
-  { label: 'Passport Copy', field: 'doc_passport', folder: 'passport', accept: '.pdf,image/*' },
-  { label: 'ID Document', field: 'doc_id', folder: 'id', accept: '.pdf,image/*' },
-  { label: "Driver's Licence", field: 'doc_drivers_licence', folder: 'drivers-licence', accept: '.pdf,image/*' },
-  { label: 'SAPS Criminal Record Check', field: 'doc_criminal_record', folder: 'criminal-record', accept: '.pdf,image/*' },
+  { label: 'Head & Shoulder Photo', field: 'doc_photo', folder: 'photo', accept: ACCEPTED_IMAGES },
+  { label: 'Passport Copy', field: 'doc_passport', folder: 'passport', accept: ACCEPTED_DOCS },
+  { label: 'ID Document', field: 'doc_id', folder: 'id', accept: ACCEPTED_DOCS },
+  { label: "Driver's Licence", field: 'doc_drivers_licence', folder: 'drivers-licence', accept: ACCEPTED_DOCS },
+  { label: 'SAPS Criminal Record Check', field: 'doc_criminal_record', folder: 'criminal-record', accept: ACCEPTED_DOCS },
 ];
 
 async function uploadDocForCandidate(
@@ -763,7 +779,7 @@ function CandidateDetail({ c, onBack, onUpdate }: { c: Candidate; onBack: () => 
               {uploadingField === 'doc_h2a_visas' ? 'Uploading…' : 'Add visa file'}
               <input
                 type="file"
-                accept=".pdf,image/*"
+                accept={ACCEPTED_DOCS}
                 style={{ display: 'none' }}
                 disabled={uploadingField !== null}
                 onChange={e => {
@@ -773,6 +789,7 @@ function CandidateDetail({ c, onBack, onUpdate }: { c: Candidate; onBack: () => 
                 }}
               />
             </label>
+            <p style={{ fontSize: '11px', color: '#888', marginTop: '4px' }}>JPEG, PNG or PDF only — no HEIC/iPhone photos</p>
           </div>
         </div>
       </div>
