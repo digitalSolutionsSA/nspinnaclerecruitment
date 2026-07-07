@@ -30,7 +30,17 @@ interface Candidate {
   crop_farming: string; irrigation_farming: string;
   doc_photo: string; doc_passport: string; doc_id: string;
   doc_drivers_licence: string; doc_h2a_visas: string; doc_criminal_record: string;
+  other_qualifications: Qualification[] | null;
   is_complete: boolean;
+}
+
+interface Qualification {
+  title: string;
+  url: string;
+}
+
+function parseQualifications(raw: Qualification[] | null | undefined): Qualification[] {
+  return Array.isArray(raw) ? raw.filter(q => q && q.title && q.url) : [];
 }
 
 function Field({ label, value }: { label: string; value: string | undefined }) {
@@ -161,29 +171,45 @@ async function exportToPdf(c: Candidate) {
 
   function drawFields(fields: { label: string; value: string | undefined }[]) {
     const filled = fields.filter(f => f.value);
-    let col = 0;
     let rowY = y;
 
-    for (const f of filled) {
-      checkPage(12);
-      const x = margin + col * colW;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7.5);
-      doc.setTextColor(...hexToRgb(GREY));
-      doc.text(f.label.toUpperCase(), x, rowY + 4);
+    for (let i = 0; i < filled.length; i += 2) {
+      // Set the value rendering font BEFORE splitTextToSize so the line-wrap
+      // calculation matches what jsPDF will actually render (9pt normal).
+      // Without this the split runs at whatever font was last set (7.5pt bold
+      // from the previous label), producing too few lines and an underestimated
+      // rowHeight — causing the value to overflow into the footer.
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
-      doc.setTextColor(34, 34, 34);
-      const lines = doc.splitTextToSize(f.value!, colW - 4);
-      doc.text(lines, x, rowY + 9);
+      const row = filled.slice(i, i + 2).map(f => ({
+        field: f,
+        lines: doc.splitTextToSize(f.value!, colW - 4) as string[],
+      }));
+      const maxLines = Math.max(...row.map(r => r.lines.length), 1);
+      const rowHeight = 13 + (maxLines > 1 ? (maxLines - 1) * 5 : 0);
 
-      if (col === 1 || filled.indexOf(f) === filled.length - 1) {
-        const lineH = Math.max(lines.length, 1) * 4.5;
-        rowY += 13 + (lineH > 4.5 ? lineH - 4.5 : 0);
-        col = 0;
-      } else {
-        col = 1;
+      // Page-break check against the row's actual running position — not
+      // the section's stale starting y — so tall/wrapped rows near the
+      // bottom of a page move to a new page instead of overflowing it.
+      // Threshold is 265 (not 275) to keep a safe gap above the footer bar.
+      if (rowY + rowHeight > 265) {
+        doc.addPage();
+        rowY = margin;
       }
+
+      row.forEach(({ field, lines }, col) => {
+        const x = margin + col * colW;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(...hexToRgb(GREY));
+        doc.text(field.label.toUpperCase(), x, rowY + 4);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(34, 34, 34);
+        doc.text(lines, x, rowY + 9);
+      });
+
+      rowY += rowHeight;
     }
     y = rowY + 4;
 
@@ -194,6 +220,9 @@ async function exportToPdf(c: Candidate) {
   }
 
   function documentList(): { label: string; url: string | undefined }[] {
+    // Fixed document slots always appear — even when not yet uploaded — so
+    // legally-sensitive items like the SAPS check and visa copies are never
+    // silently absent from the export.
     const docs: { label: string; url: string | undefined }[] = [
       { label: 'Head & Shoulder Photo', url: c.doc_photo },
       { label: 'Passport Copy', url: c.doc_passport },
@@ -201,23 +230,25 @@ async function exportToPdf(c: Candidate) {
       { label: "Driver's Licence", url: c.doc_drivers_licence },
       { label: 'SAPS Criminal Record Check', url: c.doc_criminal_record },
     ];
-    const h2a = c.doc_h2a_visas
-      ? c.doc_h2a_visas.split(',').map((u, i) => ({ label: `H-2A Visa ${i + 1}`, url: u.trim() }))
-      : [];
-    return [...docs, ...h2a].filter(d => d.url);
+
+    if (c.doc_h2a_visas) {
+      c.doc_h2a_visas.split(',').forEach((u, i) => {
+        docs.push({ label: `H-2A Visa Copy ${i + 1}`, url: u.trim() });
+      });
+    } else {
+      docs.push({ label: 'H-2A Visa Copy', url: undefined });
+    }
+
+    parseQualifications(c.other_qualifications).forEach(q => {
+      docs.push({ label: q.title, url: q.url });
+    });
+
+    return docs;
   }
 
   function drawDocuments() {
     const docs = documentList();
     drawSectionTitle('Uploaded Documents');
-    if (docs.length === 0) {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      doc.setTextColor(...hexToRgb(GREY));
-      doc.text('No documents uploaded.', margin, y + 4);
-      y += 10;
-      return;
-    }
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(...hexToRgb(GREY));
@@ -227,8 +258,13 @@ async function exportToPdf(c: Candidate) {
       checkPage(8);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
-      doc.setTextColor(...hexToRgb(GREEN));
-      doc.text(`•  ${d.label}`, margin, y + 4);
+      if (d.url) {
+        doc.setTextColor(...hexToRgb(GREEN));
+        doc.text(`•  ${d.label}`, margin, y + 4);
+      } else {
+        doc.setTextColor(...hexToRgb(GREY));
+        doc.text(`•  ${d.label}  (not yet uploaded)`, margin, y + 4);
+      }
       y += 7;
     });
     y += 4;
@@ -350,7 +386,7 @@ async function exportToPdf(c: Candidate) {
   const [GOLD_R, GOLD_G, GOLD_B] = hexToRgb(GOLD).map(v => v / 255);
 
   for (const d of docs) {
-    await appendDocumentPages(finalPdf, labelFont, d.label, d.url!, {
+    await appendDocumentPages(finalPdf, labelFont, d.label, d.url, {
       GREEN_R, GREEN_G, GREEN_B, GOLD_R, GOLD_G, GOLD_B,
     });
   }
@@ -369,7 +405,7 @@ async function appendDocumentPages(
   finalPdf: PDFDocument,
   labelFont: PDFFont,
   label: string,
-  url: string,
+  url: string | undefined,
   colors: { GREEN_R: number; GREEN_G: number; GREEN_B: number; GOLD_R: number; GOLD_G: number; GOLD_B: number },
 ) {
   const A4: [number, number] = [595.28, 841.89];
@@ -387,13 +423,30 @@ async function appendDocumentPages(
     });
   }
 
+  if (!url) {
+    const page = finalPdf.addPage(A4);
+    drawLabelBanner(page, label);
+    page.drawText('This document has not been uploaded yet.', { x: 30, y: A4[1] - 70, size: 11, font: labelFont });
+    return;
+  }
+
   try {
-    const res = await fetch(url);
+    // Fetch via a server-side proxy to avoid CORS restrictions on Supabase
+    // storage URLs when the request comes from a browser on the Netlify domain.
+    const token = sessionStorage.getItem('admin_token') ?? '';
+    const proxyUrl = `/.netlify/functions/proxy-doc?url=${encodeURIComponent(url)}`;
+    const res = await fetch(proxyUrl, { headers: { Authorization: `Bearer ${token}` } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const contentType = res.headers.get('content-type') ?? '';
     const bytes = await res.arrayBuffer();
     const ext = (url.split('?')[0].split('.').pop() ?? '').toLowerCase();
+    // Prefer the server-reported content type over the URL's file extension —
+    // the extension comes from whatever name the uploader's device gave the
+    // file and doesn't always match the actual bytes.
+    const isPdf = contentType.includes('pdf') || (!contentType && ext === 'pdf');
+    const isPng = contentType.includes('png') || (!contentType && ext === 'png');
 
-    if (ext === 'pdf') {
+    if (isPdf) {
       const srcPdf = await PDFDocument.load(bytes, { ignoreEncryption: true });
       const copiedPages = await finalPdf.copyPages(srcPdf, srcPdf.getPageIndices());
       copiedPages.forEach((p, i) => {
@@ -401,7 +454,7 @@ async function appendDocumentPages(
         if (i === 0) drawLabelBanner(p, label);
       });
     } else {
-      const image = ext === 'png' ? await finalPdf.embedPng(bytes) : await finalPdf.embedJpg(bytes);
+      const image = isPng ? await finalPdf.embedPng(bytes) : await finalPdf.embedJpg(bytes);
       const page = finalPdf.addPage(A4);
       const margin = 30;
       const topOffset = 40; // leave room for the label banner
@@ -413,8 +466,11 @@ async function appendDocumentPages(
       page.drawImage(image, { x: (A4[0] - w) / 2, y: (A4[1] - topOffset - h) / 2, width: w, height: h });
       drawLabelBanner(page, label);
     }
-  } catch {
-    // Document couldn't be fetched/embedded — add a fallback page noting the issue
+  } catch (err) {
+    // Document couldn't be fetched/embedded (e.g. an unsupported image format
+    // like HEIC/WEBP, or a network error) — add a fallback page noting the
+    // issue and a direct link, instead of silently dropping it.
+    console.error(`Failed to embed document "${label}":`, err);
     const page = finalPdf.addPage(A4);
     drawLabelBanner(page, label);
     page.drawText('This document could not be embedded automatically.', { x: 30, y: A4[1] - 70, size: 11, font: labelFont });
@@ -597,6 +653,16 @@ function CandidateDetail({ c, onBack, onUpdate }: { c: Candidate; onBack: () => 
           <DocLink key={i} label={`H-2A Visa ${i + 1}`} url={url.trim()} />
         ))}
         <DocLink label="SAPS Criminal Record Check" url={c.doc_criminal_record} />
+      </Section>
+
+      <Section title="Other Qualifications">
+        {parseQualifications(c.other_qualifications).length === 0 ? (
+          <span className="detail-value" style={{ color: 'var(--text-light)' }}>None uploaded.</span>
+        ) : (
+          parseQualifications(c.other_qualifications).map((q, i) => (
+            <DocLink key={i} label={q.title} url={q.url} />
+          ))
+        )}
       </Section>
 
       <div className="detail-section">
