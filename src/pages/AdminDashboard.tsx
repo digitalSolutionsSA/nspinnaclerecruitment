@@ -453,7 +453,6 @@ async function appendDocumentPages(
     // the extension comes from whatever name the uploader's device gave the
     // file and doesn't always match the actual bytes.
     const isPdf = contentType.includes('pdf') || (!contentType && ext === 'pdf');
-    const isPng = contentType.includes('png') || (!contentType && ext === 'png');
 
     let embedded = false;
 
