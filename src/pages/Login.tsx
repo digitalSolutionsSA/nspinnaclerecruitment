@@ -34,16 +34,18 @@ export default function Login() {
     setLoading(true);
     setError('');
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/profile`,
-    });
+    try {
+      await fetch('/.netlify/functions/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      setMessage('If that email is registered, a reset link has been sent. Check your inbox.');
+    } catch {
+      setError('Something went wrong. Please try again in a moment.');
+    }
 
     setLoading(false);
-    if (error) {
-      setError(error.message);
-    } else {
-      setMessage('Password reset link sent! Check your email.');
-    }
   };
 
   return (

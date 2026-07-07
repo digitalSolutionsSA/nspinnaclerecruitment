@@ -174,6 +174,18 @@ export default function CandidateRegistration() {
       return;
     }
 
+    // Supabase silently "succeeds" (no error, no new identity) when the email is
+    // already registered — it does NOT update the password. Without this check,
+    // someone re-registering with a different password thinks it worked, but their
+    // old password stays active and they get "Invalid login credentials" later.
+    if (authData.user && authData.user.identities && authData.user.identities.length === 0) {
+      setError(
+        'An account with this email already exists. Please sign in instead, or use "Forgot your password?" on the login page if you don\'t remember it.'
+      );
+      setLoading(false);
+      return;
+    }
+
     // If email confirmation is enabled, session is null after signUp.
     // Explicitly set it so storage uploads are authenticated.
     if (authData.session) {

@@ -9,6 +9,7 @@ const About = lazy(() => import('./pages/About'));
 const FAQ = lazy(() => import('./pages/FAQ'));
 const CandidateRegistration = lazy(() => import('./pages/CandidateRegistration'));
 const Login = lazy(() => import('./pages/Login'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Profile = lazy(() => import('./pages/Profile'));
 const AdminLogin = lazy(() => import('./pages/AdminLogin'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
@@ -38,6 +39,7 @@ function AppRoutes() {
                 <Route path="/faq" element={<FAQ />} />
                 <Route path="/candidate-registration" element={<CandidateRegistration />} />
                 <Route path="/login" element={<Login />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/profile" element={
                   <ProtectedRoute><Profile /></ProtectedRoute>
                 } />
