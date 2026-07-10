@@ -60,6 +60,11 @@ const emptyDocs: DocUrls = {
   doc_drivers_licence: '', doc_h2a_visas: '', doc_criminal_record: '',
 };
 
+interface Qualification {
+  title: string;
+  url: string;
+}
+
 async function uploadDoc(userId: string, folder: string, file: File): Promise<{ url: string | null; error: string | null }> {
   const ext = file.name.split('.').pop();
   const path = `${userId}/${folder}/${Date.now()}.${ext}`;
@@ -74,6 +79,9 @@ export default function Profile() {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<ProfileData>(empty);
   const [docUrls, setDocUrls] = useState<DocUrls>(emptyDocs);
+  const [qualifications, setQualifications] = useState<Qualification[]>([]);
+  const [newQualTitle, setNewQualTitle] = useState('');
+  const [uploadingQual, setUploadingQual] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -103,6 +111,7 @@ export default function Profile() {
         doc_h2a_visas: data.doc_h2a_visas || '',
         doc_criminal_record: data.doc_criminal_record || '',
       });
+      setQualifications(Array.isArray(data.other_qualifications) ? data.other_qualifications : []);
     }
     if (error && error.code !== 'PGRST116') setError('Failed to load profile.');
     setLoading(false);
@@ -144,6 +153,30 @@ export default function Profile() {
     setUploadingDoc(null);
     setSaveMsg('Document uploaded!');
     setTimeout(() => setSaveMsg(''), 3000);
+  };
+
+  const handleAddQualification = async (file: File) => {
+    if (!newQualTitle.trim()) return;
+    setUploadingQual(true);
+    const result = await uploadDoc(user!.id, 'qualifications', file);
+    if (!result.url) {
+      setUploadingQual(false);
+      setError('Upload failed: ' + (result.error ?? 'Unknown error'));
+      return;
+    }
+    const updated = [...qualifications, { title: newQualTitle.trim(), url: result.url }];
+    setQualifications(updated);
+    await supabase.from('candidates').update({ other_qualifications: updated }).eq('id', user!.id);
+    setNewQualTitle('');
+    setUploadingQual(false);
+    setSaveMsg('Certificate added!');
+    setTimeout(() => setSaveMsg(''), 3000);
+  };
+
+  const handleRemoveQualification = async (index: number) => {
+    const updated = qualifications.filter((_, i) => i !== index);
+    setQualifications(updated);
+    await supabase.from('candidates').update({ other_qualifications: updated }).eq('id', user!.id);
   };
 
   const saveToDb = async () => {
@@ -634,6 +667,52 @@ export default function Profile() {
                     />
                   </label>
                 </div>
+              </div>
+
+              <h3 className="form-section-title" style={{ marginTop: '2rem' }}>Achievements &amp; Certificates</h3>
+              <p className="form-hint">Add any other qualifications, courses or certificates — e.g. a forklift licence, first aid course, or trade certificate.</p>
+
+              {qualifications.length > 0 && (
+                <div className="doc-upload-grid" style={{ marginBottom: '1rem' }}>
+                  {qualifications.map((q, i) => (
+                    <div key={i} className="doc-upload-item">
+                      <div className="doc-upload-header">
+                        <span className="doc-label">{q.title}</span>
+                        <a href={q.url} target="_blank" rel="noopener noreferrer" className="doc-view-link">View ↗</a>
+                      </div>
+                      <button type="button" className="doc-remove-btn" onClick={() => handleRemoveQualification(i)}>
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="doc-upload-item">
+                <div className="doc-upload-header">
+                  <span className="doc-label">Add a Certificate</span>
+                </div>
+                <input
+                  type="text"
+                  className="qual-title-input"
+                  placeholder="Title, e.g. Forklift Operator Certificate"
+                  value={newQualTitle}
+                  onChange={e => setNewQualTitle(e.target.value)}
+                />
+                <label className={`doc-upload-btn ${!newQualTitle.trim() ? 'doc-upload-btn-disabled' : ''}`}>
+                  {uploadingQual ? 'Uploading...' : 'Upload file'}
+                  <input
+                    type="file"
+                    accept=".pdf,image/*"
+                    style={{ display: 'none' }}
+                    disabled={uploadingQual || !newQualTitle.trim()}
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) handleAddQualification(file);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
               </div>
             </div>
           )}

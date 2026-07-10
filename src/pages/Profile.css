@@ -435,6 +435,50 @@
   background: var(--green-dark);
 }
 
+.doc-upload-btn-disabled {
+  background: #c8c8c0 !important;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.doc-remove-btn {
+  display: inline-block;
+  margin-top: 0.3rem;
+  padding: 0.5rem 1rem;
+  background: #fff;
+  color: #b71c1c;
+  border: 1.5px solid #e0c0c0;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.2s;
+  align-self: flex-start;
+}
+
+.doc-remove-btn:hover {
+  background: #fdf0f0;
+}
+
+.qual-title-input {
+  width: 100%;
+  margin-bottom: 0.6rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.85rem;
+  font-size: 0.95rem;
+  background: var(--off-white);
+  color: var(--text);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.qual-title-input:focus {
+  outline: none;
+  border-color: var(--green);
+  background: var(--white);
+}
+
 @media (max-width: 640px) {
   .form-grid-2 {
     grid-template-columns: 1fr;

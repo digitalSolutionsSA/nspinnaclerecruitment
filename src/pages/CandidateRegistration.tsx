@@ -106,6 +106,11 @@ const emptyDocs: DocFiles = {
   driversLicence: null, h2aVisas: [], criminalRecord: null,
 };
 
+interface QualificationInput {
+  title: string;
+  file: File | null;
+}
+
 // Everything beyond the 3 hard-required fields that makes a profile "complete"
 function checkCompleteness(form: FormData, docs: DocFiles): string[] {
   const missing: string[] = [];
@@ -142,6 +147,7 @@ export default function CandidateRegistration() {
   const navigate = useNavigate();
   const [form, setForm] = useState<FormData>(initialForm);
   const [docs, setDocs] = useState<DocFiles>(emptyDocs);
+  const [qualifications, setQualifications] = useState<QualificationInput[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -235,7 +241,7 @@ export default function CandidateRegistration() {
       }
 
       // Upload documents and save URLs
-      const docUrls: Record<string, string> = {};
+      const docUrls: Record<string, string | { title: string; url: string }[]> = {};
       const uploadErrors: string[] = [];
 
       const tryUpload = async (key: string, folder: string, file: File) => {
@@ -258,6 +264,16 @@ export default function CandidateRegistration() {
         }
         if (urls.length > 0) docUrls.doc_h2a_visas = urls.join(',');
       }
+
+      const qualificationResults: { title: string; url: string }[] = [];
+      for (const q of qualifications) {
+        if (q.file && q.title.trim()) {
+          const result = await uploadFile(userId, 'qualifications', q.file);
+          if (result.url) qualificationResults.push({ title: q.title.trim(), url: result.url });
+          else if (result.error) uploadErrors.push(result.error);
+        }
+      }
+      if (qualificationResults.length > 0) docUrls.other_qualifications = qualificationResults;
 
       if (uploadErrors.length > 0) {
         setError('Some documents failed to upload: ' + uploadErrors.join('; ') + '. Please log in and update your profile to re-upload them.');
@@ -732,6 +748,56 @@ export default function CandidateRegistration() {
                   <input type="file" accept=".pdf,image/*" onChange={e => setDocs(d => ({ ...d, criminalRecord: e.target.files?.[0] ?? null }))} />
                 </div>
               </div>
+            </div>
+
+            {/* ── 9. Additional Achievements / Certificates ── */}
+            <div className="form-section">
+              <h3 className="form-section-title">9. Additional Achievements / Certificates</h3>
+              <p className="form-hint">
+                Add any other qualifications, courses or certificates you'd like to include —
+                e.g. a forklift licence, first aid course, or trade certificate. Optional.
+              </p>
+              {qualifications.map((q, i) => (
+                <div key={i} className="form-grid form-grid-2 qualification-row">
+                  <div className="form-group">
+                    <label>Title / Description</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Forklift Operator Certificate"
+                      value={q.title}
+                      onChange={e => setQualifications(prev =>
+                        prev.map((row, idx) => idx === i ? { ...row, title: e.target.value } : row)
+                      )}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Document</label>
+                    <div className="qualification-file-row">
+                      <input
+                        type="file"
+                        accept=".pdf,image/*"
+                        onChange={e => setQualifications(prev =>
+                          prev.map((row, idx) => idx === i ? { ...row, file: e.target.files?.[0] ?? null } : row)
+                        )}
+                      />
+                      <button
+                        type="button"
+                        className="qualification-remove-btn"
+                        onClick={() => setQualifications(prev => prev.filter((_, idx) => idx !== i))}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <button
+                type="button"
+                className="btn-add-qualification"
+                onClick={() => setQualifications(prev => [...prev, { title: '', file: null }])}
+              >
+                + Add Achievement / Certificate
+              </button>
             </div>
 
             {/* ── Account Password ── */}

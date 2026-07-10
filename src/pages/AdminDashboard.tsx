@@ -804,22 +804,32 @@ export default function AdminDashboard() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Candidate | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchCandidates = () => {
+    return supabase
+      .from('candidates')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (error) setError('Failed to load candidates: ' + error.message);
+        else { setCandidates(data ?? []); setError(''); }
+      });
+  };
 
   useEffect(() => {
     const token = sessionStorage.getItem('admin_token');
     const ADMIN_TOKEN = import.meta.env.VITE_ADMIN_TOKEN ?? 'ns-admin-secret-2024';
     if (!token || token !== ADMIN_TOKEN) { navigate('/admin'); return; }
 
-    supabase
-      .from('candidates')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .then(({ data, error }) => {
-        if (error) { setError('Failed to load candidates: ' + error.message); }
-        else setCandidates(data ?? []);
-        setLoading(false);
-      });
+    fetchCandidates().then(() => setLoading(false));
   }, [navigate]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchCandidates();
+    setRefreshing(false);
+  };
 
   const handleSignOut = () => {
     sessionStorage.removeItem('admin_token');
@@ -870,13 +880,18 @@ export default function AdminDashboard() {
             Registered Candidates
             {!loading && <span className="candidate-count">{candidates.length}</span>}
           </h1>
-          <input
-            className="admin-search"
-            type="text"
-            placeholder="Search by name, email, ID or phone…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+          <div className="admin-toolbar-actions">
+            <button className="admin-refresh-btn" onClick={handleRefresh} disabled={refreshing}>
+              {refreshing ? 'Refreshing…' : '↻ Refresh'}
+            </button>
+            <input
+              className="admin-search"
+              type="text"
+              placeholder="Search by name, email, ID or phone…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
         </div>
 
         {error && <div className="admin-error">{error}</div>}
@@ -906,7 +921,9 @@ export default function AdminDashboard() {
                   const docCount = [
                     c.doc_photo, c.doc_passport, c.doc_id,
                     c.doc_drivers_licence, c.doc_criminal_record,
-                  ].filter(Boolean).length + (c.doc_h2a_visas ? c.doc_h2a_visas.split(',').length : 0);
+                  ].filter(Boolean).length
+                    + (c.doc_h2a_visas ? c.doc_h2a_visas.split(',').length : 0)
+                    + parseQualifications(c.other_qualifications).length;
 
                   return (
                     <tr key={c.id} onClick={() => setSelected(c)} className="candidate-row">
