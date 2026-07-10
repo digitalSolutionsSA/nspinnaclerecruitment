@@ -280,9 +280,15 @@ export default function CandidateRegistration() {
       }
 
       if (Object.keys(docUrls).length > 0) {
-        const { error: updateError } = await supabase.from('candidates').update(docUrls).eq('id', userId);
+        const { data: updateData, error: updateError } = await supabase
+          .from('candidates')
+          .update(docUrls)
+          .eq('id', userId)
+          .select('id');
         if (updateError) {
           setError(e => (e ? e + ' ' : '') + 'Document URLs could not be saved: ' + updateError.message);
+        } else if (!updateData || updateData.length === 0) {
+          setError(e => (e ? e + ' ' : '') + 'Document URLs could not be saved. Please log in and update your profile to re-upload them.');
         }
       }
 

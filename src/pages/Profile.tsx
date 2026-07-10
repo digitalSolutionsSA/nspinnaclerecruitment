@@ -74,6 +74,18 @@ async function uploadDoc(userId: string, folder: string, file: File): Promise<{ 
   return { url: data.publicUrl, error: null };
 }
 
+const SESSION_EXPIRED_MSG = 'Could not save — your session may have expired. Please sign out, log back in, and try again.';
+
+// A blocked RLS write updates zero rows without raising an error, so a
+// successful-looking call can silently save nothing — .select() lets us
+// confirm a row actually came back before reporting success.
+async function persistCandidateUpdate(userId: string, values: Record<string, unknown>): Promise<string | null> {
+  const { data, error } = await supabase.from('candidates').update(values).eq('id', userId).select('id');
+  if (error) return error.message;
+  if (!data || data.length === 0) return SESSION_EXPIRED_MSG;
+  return null;
+}
+
 export default function Profile() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
@@ -149,8 +161,12 @@ export default function Profile() {
     }
 
     setDocUrls(prev => ({ ...prev, [field]: newValue }));
-    await supabase.from('candidates').update({ [field]: newValue }).eq('id', user!.id);
+    const persistError = await persistCandidateUpdate(user!.id, { [field]: newValue });
     setUploadingDoc(null);
+    if (persistError) {
+      setError(persistError);
+      return;
+    }
     setSaveMsg('Document uploaded!');
     setTimeout(() => setSaveMsg(''), 3000);
   };
@@ -165,25 +181,36 @@ export default function Profile() {
       return;
     }
     const updated = [...qualifications, { title: newQualTitle.trim(), url: result.url }];
-    setQualifications(updated);
-    await supabase.from('candidates').update({ other_qualifications: updated }).eq('id', user!.id);
-    setNewQualTitle('');
+    const persistError = await persistCandidateUpdate(user!.id, { other_qualifications: updated });
     setUploadingQual(false);
+    if (persistError) {
+      setError(persistError);
+      return;
+    }
+    setQualifications(updated);
+    setNewQualTitle('');
     setSaveMsg('Certificate added!');
     setTimeout(() => setSaveMsg(''), 3000);
   };
 
   const handleRemoveQualification = async (index: number) => {
     const updated = qualifications.filter((_, i) => i !== index);
+    const persistError = await persistCandidateUpdate(user!.id, { other_qualifications: updated });
+    if (persistError) {
+      setError(persistError);
+      return;
+    }
     setQualifications(updated);
-    await supabase.from('candidates').update({ other_qualifications: updated }).eq('id', user!.id);
   };
 
-  const saveToDb = async () => {
-    const { error } = await supabase
+  const saveToDb = async (): Promise<string | null> => {
+    const { data, error } = await supabase
       .from('candidates')
-      .upsert({ id: user!.id, ...profile }, { onConflict: 'id' });
-    return error;
+      .upsert({ id: user!.id, ...profile }, { onConflict: 'id' })
+      .select('id');
+    if (error) return error.message;
+    if (!data || data.length === 0) return SESSION_EXPIRED_MSG;
+    return null;
   };
 
   const handleSave = async (e: FormEvent) => {
@@ -191,10 +218,10 @@ export default function Profile() {
     setSaving(true);
     setError('');
     setSaveMsg('');
-    const error = await saveToDb();
+    const saveError = await saveToDb();
     setSaving(false);
-    if (error) {
-      setError('Failed to save. Please try again.');
+    if (saveError) {
+      setError(saveError);
     } else {
       setSaveMsg('Changes saved!');
       setTimeout(() => setSaveMsg(''), 3000);
@@ -205,10 +232,10 @@ export default function Profile() {
     setSaving(true);
     setError('');
     setSaveMsg('');
-    const error = await saveToDb();
-    if (error) {
+    const saveError = await saveToDb();
+    if (saveError) {
       setSaving(false);
-      setError('Failed to save. Please try again.');
+      setError(saveError);
       return;
     }
     // Send emails — await so the request isn't cancelled by navigation
