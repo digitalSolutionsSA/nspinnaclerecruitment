@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM = process.env.FROM_EMAIL ?? 'NS Pinnacle Recruit <noreply@nspinnacle.co.za>';
+const FROM = process.env.FROM_EMAIL ?? 'NS Pinnacle Recruit <noreply@nspinnaclerecruit.com>';
 
 function siteUrl(event: Parameters<Handler>[0]): string {
   const origin = event.headers['origin'] || event.headers['Origin'];
