@@ -592,11 +592,45 @@ async function uploadDocForCandidate(
   return value as string;
 }
 
+async function uploadQualificationForCandidate(
+  candidateId: string,
+  title: string,
+  file: File,
+): Promise<Qualification[]> {
+  const token = sessionStorage.getItem('admin_token') ?? '';
+
+  const signRes = await fetch('/.netlify/functions/admin-upload-doc', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ action: 'sign', candidateId, folder: 'qualifications', filename: file.name }),
+  });
+  if (!signRes.ok) throw new Error((await signRes.json().catch(() => null))?.error ?? 'Failed to get upload URL');
+  const { path, token: uploadToken } = await signRes.json();
+
+  const { error: uploadError } = await supabase.storage
+    .from('candidate-documents')
+    .uploadToSignedUrl(path, uploadToken, file);
+  if (uploadError) throw new Error(uploadError.message);
+
+  const { data } = supabase.storage.from('candidate-documents').getPublicUrl(path);
+
+  const commitRes = await fetch('/.netlify/functions/admin-upload-doc', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ action: 'commit', candidateId, field: 'other_qualifications', url: data.publicUrl, title }),
+  });
+  if (!commitRes.ok) throw new Error((await commitRes.json().catch(() => null))?.error ?? 'Failed to save qualification');
+  const { value } = await commitRes.json();
+  return value as Qualification[];
+}
+
 function CandidateDetail({ c, onBack, onUpdate }: { c: Candidate; onBack: () => void; onUpdate: (updated: Candidate) => void }) {
   const h2aUrls = c.doc_h2a_visas ? c.doc_h2a_visas.split(',') : [];
   const [exporting, setExporting] = useState(false);
   const [uploadingField, setUploadingField] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState('');
+  const [qualTitle, setQualTitle] = useState('');
+  const [uploadingQual, setUploadingQual] = useState(false);
 
   async function handleExport() {
     setExporting(true);
@@ -613,6 +647,24 @@ function CandidateDetail({ c, onBack, onUpdate }: { c: Candidate; onBack: () => 
       setUploadError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setUploadingField(null);
+    }
+  }
+
+  async function handleAddQualification(file: File) {
+    if (!qualTitle.trim()) {
+      setUploadError('Enter a title for the document before uploading.');
+      return;
+    }
+    setUploadingQual(true);
+    setUploadError('');
+    try {
+      const updated = await uploadQualificationForCandidate(c.id, qualTitle.trim(), file);
+      onUpdate({ ...c, other_qualifications: updated });
+      setQualTitle('');
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploadingQual(false);
     }
   }
 
@@ -791,6 +843,35 @@ function CandidateDetail({ c, onBack, onUpdate }: { c: Candidate; onBack: () => 
               />
             </label>
             <p style={{ fontSize: '11px', color: '#888', marginTop: '4px' }}>JPEG, PNG or PDF only — no HEIC/iPhone photos</p>
+          </div>
+
+          <div className="admin-upload-item">
+            <div className="admin-upload-header">
+              <span className="admin-upload-label">Additional Certificate / Document</span>
+            </div>
+            <input
+              type="text"
+              className="qual-title-input"
+              placeholder="Document title, e.g. Welding Certificate"
+              value={qualTitle}
+              onChange={e => setQualTitle(e.target.value)}
+              disabled={uploadingQual}
+            />
+            <label className={`admin-upload-btn${!qualTitle.trim() ? ' admin-upload-btn-disabled' : ''}`}>
+              {uploadingQual ? 'Uploading…' : 'Upload file'}
+              <input
+                type="file"
+                accept={ACCEPTED_DOCS}
+                style={{ display: 'none' }}
+                disabled={uploadingQual || !qualTitle.trim()}
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) handleAddQualification(file);
+                  e.target.value = '';
+                }}
+              />
+            </label>
+            <p style={{ fontSize: '11px', color: '#888', marginTop: '4px' }}>JPEG, PNG or PDF only — enter a title first, then choose a file</p>
           </div>
         </div>
       </div>

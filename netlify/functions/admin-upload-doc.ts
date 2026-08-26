@@ -28,6 +28,7 @@ export const handler: Handler = async (event) => {
     field?: string;
     url?: string;
     multi?: boolean;
+    title?: string;
   };
   try {
     body = JSON.parse(event.body ?? '{}');
@@ -61,9 +62,36 @@ export const handler: Handler = async (event) => {
   }
 
   if (body.action === 'commit') {
-    const { candidateId, field, url, multi } = body;
+    const { candidateId, field, url, multi, title } = body;
     if (!candidateId || !field || !url) {
       return { statusCode: 400, body: JSON.stringify({ error: 'candidateId, field and url are required' }) };
+    }
+
+    if (field === 'other_qualifications') {
+      if (!title) {
+        return { statusCode: 400, body: JSON.stringify({ error: 'title is required for qualifications' }) };
+      }
+      const { data: existing, error: fetchError } = await supabase
+        .from('candidates')
+        .select('other_qualifications')
+        .eq('id', candidateId)
+        .single();
+      if (fetchError) {
+        return { statusCode: 500, body: JSON.stringify({ error: fetchError.message }) };
+      }
+      const current = Array.isArray(existing?.other_qualifications) ? existing.other_qualifications : [];
+      const updated = [...current, { title, url }];
+
+      const { error } = await supabase.from('candidates').update({ other_qualifications: updated }).eq('id', candidateId);
+      if (error) {
+        return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+      }
+
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: updated }),
+      };
     }
 
     let newValue = url;

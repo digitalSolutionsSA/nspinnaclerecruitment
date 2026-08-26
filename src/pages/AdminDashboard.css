@@ -480,6 +480,17 @@
 .admin-upload-status.uploaded { background: #e6f9ee; color: #1a7a3c; }
 .admin-upload-status.missing { background: #fff4e0; color: #b06000; }
 
+.qual-title-input {
+  padding: 7px 10px;
+  border: 1.5px solid #e4ecf8;
+  border-radius: 5px;
+  font-size: 13px;
+  color: #222;
+  background: #fff;
+}
+.qual-title-input:focus { outline: none; border-color: #1a4b8c; }
+.qual-title-input:disabled { opacity: .6; }
+
 .admin-upload-btn {
   display: inline-block;
   padding: 7px 16px;
@@ -494,6 +505,11 @@
   align-self: flex-start;
 }
 .admin-upload-btn:hover { background: #0d2a5e; }
+.admin-upload-btn-disabled {
+  background: #c8d4e6;
+  cursor: default;
+  pointer-events: none;
+}
 
 @media (max-width: 640px) {
   .admin-main { padding: 16px; }
