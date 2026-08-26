@@ -32,6 +32,7 @@ interface Candidate {
   doc_drivers_licence: string; doc_h2a_visas: string; doc_criminal_record: string;
   other_qualifications: Qualification[] | null;
   is_complete: boolean;
+  admin_note: string | null;
 }
 
 interface Qualification {
@@ -805,6 +806,8 @@ export default function AdminDashboard() {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Candidate | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const [savingNoteId, setSavingNoteId] = useState<string | null>(null);
 
   const fetchCandidates = async () => {
     const token = sessionStorage.getItem('admin_token') ?? '';
@@ -837,6 +840,34 @@ export default function AdminDashboard() {
     setRefreshing(true);
     await fetchCandidates();
     setRefreshing(false);
+  };
+
+  const handleSaveNote = async (candidateId: string) => {
+    const note = (noteDrafts[candidateId] ?? '').trim();
+    setSavingNoteId(candidateId);
+    try {
+      const token = sessionStorage.getItem('admin_token') ?? '';
+      const res = await fetch('/.netlify/functions/admin-update-note', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ candidateId, note }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setError('Failed to save note: ' + (body?.error ?? res.statusText));
+        return;
+      }
+      setCandidates(prev => prev.map(c => (c.id === candidateId ? { ...c, admin_note: note } : c)));
+      setNoteDrafts(prev => {
+        const next = { ...prev };
+        delete next[candidateId];
+        return next;
+      });
+    } catch (err) {
+      setError('Failed to save note: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setSavingNoteId(null);
+    }
   };
 
   const handleSignOut = () => {
@@ -921,7 +952,8 @@ export default function AdminDashboard() {
                   <th>Passport</th>
                   <th>Registered</th>
                   <th>Docs</th>
-                  <th></th>
+                  <th>Notes</th>
+                  <th className="th-view"></th>
                 </tr>
               </thead>
               <tbody>
@@ -932,6 +964,9 @@ export default function AdminDashboard() {
                   ].filter(Boolean).length
                     + (c.doc_h2a_visas ? c.doc_h2a_visas.split(',').length : 0)
                     + parseQualifications(c.other_qualifications).length;
+
+                  const noteDraft = noteDrafts[c.id] ?? c.admin_note ?? '';
+                  const noteDirty = noteDraft !== (c.admin_note ?? '');
 
                   return (
                     <tr key={c.id} onClick={() => setSelected(c)} className="candidate-row">
@@ -953,7 +988,28 @@ export default function AdminDashboard() {
                           {docCount} file{docCount !== 1 ? 's' : ''}
                         </span>
                       </td>
-                      <td><button className="view-btn" onClick={e => { e.stopPropagation(); setSelected(c); }}>View →</button></td>
+                      <td onClick={e => e.stopPropagation()}>
+                        <div className="note-cell">
+                          <input
+                            type="text"
+                            className="note-input"
+                            placeholder="Add note…"
+                            value={noteDraft}
+                            onChange={e => setNoteDrafts(prev => ({ ...prev, [c.id]: e.target.value }))}
+                            onKeyDown={e => { if (e.key === 'Enter') handleSaveNote(c.id); }}
+                          />
+                          {noteDirty && (
+                            <button
+                              className="note-save-btn"
+                              disabled={savingNoteId === c.id}
+                              onClick={() => handleSaveNote(c.id)}
+                            >
+                              {savingNoteId === c.id ? '…' : 'Save'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td className="td-view"><button className="view-btn" onClick={e => { e.stopPropagation(); setSelected(c); }}>View →</button></td>
                     </tr>
                   );
                 })}

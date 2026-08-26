@@ -232,6 +232,57 @@
 }
 .view-btn:hover { background: #1a4b8c; color: #fff; }
 
+/* Keep the View column fully visible even when the table scrolls
+   horizontally, instead of letting it clip at the container edge. */
+.th-view, .td-view {
+  position: sticky;
+  right: 0;
+  background: #fff;
+  box-shadow: -6px 0 8px -6px rgba(0,0,0,.12);
+}
+.th-view { background: #f8faff; }
+.candidate-row:hover .td-view { background: #f0f6ff; }
+
+.note-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 160px;
+}
+
+.note-input {
+  flex: 1;
+  min-width: 120px;
+  padding: 6px 10px;
+  border: 1.5px solid #e4ecf8;
+  border-radius: 5px;
+  font-size: 13px;
+  color: #222;
+  background: #f8faff;
+  transition: border-color .15s, background .15s;
+}
+.note-input:focus {
+  outline: none;
+  border-color: #1a4b8c;
+  background: #fff;
+}
+.note-input::placeholder { color: #aaa; }
+
+.note-save-btn {
+  background: #1a4b8c;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s;
+}
+.note-save-btn:hover:not(:disabled) { background: #0d2a5e; }
+.note-save-btn:disabled { opacity: .6; cursor: default; }
+
 /* ── Candidate Detail ── */
 .candidate-detail {
   max-width: 860px;
