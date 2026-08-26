@@ -1033,7 +1033,6 @@ export default function AdminDashboard() {
                   <th>Passport</th>
                   <th>Registered</th>
                   <th>Docs</th>
-                  <th>Notes</th>
                   <th className="th-view"></th>
                 </tr>
               </thead>
@@ -1054,10 +1053,33 @@ export default function AdminDashboard() {
                       <td className="td-num">{i + 1}</td>
                       <td className="td-name">
                         <div className="row-avatar">{(c.first_name?.[0] ?? '?').toUpperCase()}</div>
-                        <span>{c.first_name} {c.last_name}</span>
-                        {!c.is_complete && (
-                          <span className="incomplete-badge" title="This profile is incomplete and will not be considered">Incomplete</span>
-                        )}
+                        <div className="td-name-stack">
+                          <div className="td-name-line">
+                            <span>{c.first_name} {c.last_name}</span>
+                            {!c.is_complete && (
+                              <span className="incomplete-badge" title="This profile is incomplete and will not be considered">Incomplete</span>
+                            )}
+                          </div>
+                          <div className="row-note" onClick={e => e.stopPropagation()}>
+                            <input
+                              type="text"
+                              className="note-input"
+                              placeholder="+ Add note…"
+                              value={noteDraft}
+                              onChange={e => setNoteDrafts(prev => ({ ...prev, [c.id]: e.target.value }))}
+                              onKeyDown={e => { if (e.key === 'Enter') handleSaveNote(c.id); }}
+                            />
+                            {noteDirty && (
+                              <button
+                                className="note-save-btn"
+                                disabled={savingNoteId === c.id}
+                                onClick={() => handleSaveNote(c.id)}
+                              >
+                                {savingNoteId === c.id ? '…' : 'Save'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </td>
                       <td>{c.email}</td>
                       <td>{c.contact_number}</td>
@@ -1068,27 +1090,6 @@ export default function AdminDashboard() {
                         <span className={`doc-badge ${docCount >= 3 ? 'doc-badge-ok' : 'doc-badge-warn'}`}>
                           {docCount} file{docCount !== 1 ? 's' : ''}
                         </span>
-                      </td>
-                      <td onClick={e => e.stopPropagation()}>
-                        <div className="note-cell">
-                          <input
-                            type="text"
-                            className="note-input"
-                            placeholder="Add note…"
-                            value={noteDraft}
-                            onChange={e => setNoteDrafts(prev => ({ ...prev, [c.id]: e.target.value }))}
-                            onKeyDown={e => { if (e.key === 'Enter') handleSaveNote(c.id); }}
-                          />
-                          {noteDirty && (
-                            <button
-                              className="note-save-btn"
-                              disabled={savingNoteId === c.id}
-                              onClick={() => handleSaveNote(c.id)}
-                            >
-                              {savingNoteId === c.id ? '…' : 'Save'}
-                            </button>
-                          )}
-                        </div>
                       </td>
                       <td className="td-view"><button className="view-btn" onClick={e => { e.stopPropagation(); setSelected(c); }}>View →</button></td>
                     </tr>

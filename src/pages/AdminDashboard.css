@@ -174,8 +174,20 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  white-space: nowrap;
   font-weight: 600;
+}
+
+.td-name-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.td-name-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
 }
 
 .row-avatar {
@@ -243,20 +255,19 @@
 .th-view { background: #f8faff; }
 .candidate-row:hover .td-view { background: #f0f6ff; }
 
-.note-cell {
+.row-note {
   display: flex;
   align-items: center;
   gap: 6px;
-  min-width: 160px;
 }
 
 .note-input {
-  flex: 1;
-  min-width: 120px;
-  padding: 6px 10px;
+  width: 180px;
+  padding: 4px 8px;
   border: 1.5px solid #e4ecf8;
   border-radius: 5px;
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 400;
   color: #222;
   background: #f8faff;
   transition: border-color .15s, background .15s;
@@ -273,8 +284,8 @@
   color: #fff;
   border: none;
   border-radius: 5px;
-  padding: 6px 12px;
-  font-size: 12px;
+  padding: 4px 10px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
