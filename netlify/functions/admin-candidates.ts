@@ -7,9 +7,12 @@ export const handler: Handler = async (event) => {
   }
 
   const token = event.headers['authorization']?.replace('Bearer ', '');
-  const adminSecret = process.env.ADMIN_SECRET ?? 'ns-admin-secret-2024';
+  const validTokens = [
+    process.env.ADMIN_SECRET ?? 'ns-admin-secret-2024',
+    process.env.VITE_ADMIN_TOKEN ?? 'ns-admin-secret-2024',
+  ];
 
-  if (token !== adminSecret) {
+  if (!token || !validTokens.includes(token)) {
     return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
   }
 

@@ -806,15 +806,23 @@ export default function AdminDashboard() {
   const [selected, setSelected] = useState<Candidate | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchCandidates = () => {
-    return supabase
-      .from('candidates')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .then(({ data, error }) => {
-        if (error) setError('Failed to load candidates: ' + error.message);
-        else { setCandidates(data ?? []); setError(''); }
+  const fetchCandidates = async () => {
+    const token = sessionStorage.getItem('admin_token') ?? '';
+    try {
+      const res = await fetch('/.netlify/functions/admin-candidates', {
+        headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setError('Failed to load candidates: ' + (body?.error ?? res.statusText));
+        return;
+      }
+      const data = await res.json();
+      setCandidates(data ?? []);
+      setError('');
+    } catch (err) {
+      setError('Failed to load candidates: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
   };
 
   useEffect(() => {
