@@ -170,49 +170,114 @@ async function exportToPdf(c: Candidate) {
     y += 11;
   }
 
-  function drawFields(fields: { label: string; value: string | undefined }[]) {
-    const filled = fields.filter(f => f.value);
-    let rowY = y;
+  // Fields that wrap to more lines than this are too tall for the two-up
+  // column layout to paginate safely as one atomic block (a single
+  // doc.text(lines, ...) call cannot itself break across pages — any line
+  // that ends up past the page's printable area is drawn off the physical
+  // page and is simply gone from the PDF, hidden under/below the footer).
+  // These get rendered full-width instead, with every line checked for a
+  // page break individually, so long free-text answers can never overflow.
+  const LONG_LINE_THRESHOLD = 4;
 
-    for (let i = 0; i < filled.length; i += 2) {
-      // Set the value rendering font BEFORE splitTextToSize so the line-wrap
-      // calculation matches what jsPDF will actually render (9pt normal).
-      // Without this the split runs at whatever font was last set (7.5pt bold
-      // from the previous label), producing too few lines and an underestimated
-      // rowHeight — causing the value to overflow into the footer.
+  function drawShortRow(rowFields: { label: string; value: string | undefined }[]) {
+    // Set the value rendering font BEFORE splitTextToSize so the line-wrap
+    // calculation matches what jsPDF will actually render (9pt normal).
+    // Without this the split runs at whatever font was last set (7.5pt bold
+    // from the previous label), producing too few lines and an underestimated
+    // rowHeight — causing the value to overflow into the footer.
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    const row = rowFields.map(f => ({
+      field: f,
+      lines: doc.splitTextToSize(f.value!, colW - 4) as string[],
+    }));
+    const maxLines = Math.max(...row.map(r => r.lines.length), 1);
+    const rowHeight = 13 + (maxLines > 1 ? (maxLines - 1) * 5 : 0);
+
+    // Page-break check against the row's actual running position — not
+    // the section's stale starting y — so tall/wrapped rows near the
+    // bottom of a page move to a new page instead of overflowing it.
+    // Threshold is 265 (not 275) to keep a safe gap above the footer bar.
+    if (y + rowHeight > 265) {
+      doc.addPage();
+      y = margin;
+    }
+
+    row.forEach(({ field, lines }, col) => {
+      const x = margin + col * colW;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(...hexToRgb(GREY));
+      doc.text(field.label.toUpperCase(), x, y + 4);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
-      const row = filled.slice(i, i + 2).map(f => ({
-        field: f,
-        lines: doc.splitTextToSize(f.value!, colW - 4) as string[],
-      }));
-      const maxLines = Math.max(...row.map(r => r.lines.length), 1);
-      const rowHeight = 13 + (maxLines > 1 ? (maxLines - 1) * 5 : 0);
+      doc.setTextColor(34, 34, 34);
+      doc.text(lines, x, y + 9);
+    });
 
-      // Page-break check against the row's actual running position — not
-      // the section's stale starting y — so tall/wrapped rows near the
-      // bottom of a page move to a new page instead of overflowing it.
-      // Threshold is 265 (not 275) to keep a safe gap above the footer bar.
-      if (rowY + rowHeight > 265) {
-        doc.addPage();
-        rowY = margin;
-      }
+    y += rowHeight;
+  }
 
-      row.forEach(({ field, lines }, col) => {
-        const x = margin + col * colW;
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7.5);
-        doc.setTextColor(...hexToRgb(GREY));
-        doc.text(field.label.toUpperCase(), x, rowY + 4);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.setTextColor(34, 34, 34);
-        doc.text(lines, x, rowY + 9);
-      });
+  function drawFullWidthField(field: { label: string; value: string | undefined }) {
+    const fullW = pageW - margin * 2 - 4;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    const lines = doc.splitTextToSize(field.value!, fullW) as string[];
+    const lineHeight = 5;
 
-      rowY += rowHeight;
+    if (y + 9 > 265) {
+      doc.addPage();
+      y = margin;
     }
-    y = rowY + 4;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...hexToRgb(GREY));
+    doc.text(field.label.toUpperCase(), margin, y + 4);
+    y += 9;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(34, 34, 34);
+    // Checked and paginated one line at a time — unlike the short-row path,
+    // this is what actually lets a very long answer (a whole paragraph of
+    // job duties, say) span as many pages as it needs without losing text.
+    for (const line of lines) {
+      if (y + lineHeight > 265) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.text(line, margin, y);
+      y += lineHeight;
+    }
+    y += 4;
+  }
+
+  function drawFields(fields: { label: string; value: string | undefined }[]) {
+    const filled = fields.filter(f => f.value);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    const prepared = filled.map(f => ({
+      field: f,
+      colLines: doc.splitTextToSize(f.value!, colW - 4) as string[],
+    }));
+
+    let i = 0;
+    while (i < prepared.length) {
+      if (prepared[i].colLines.length > LONG_LINE_THRESHOLD) {
+        drawFullWidthField(prepared[i].field);
+        i += 1;
+        continue;
+      }
+      const rowFields = [prepared[i].field];
+      if (prepared[i + 1] && prepared[i + 1].colLines.length <= LONG_LINE_THRESHOLD) {
+        rowFields.push(prepared[i + 1].field);
+        i += 2;
+      } else {
+        i += 1;
+      }
+      drawShortRow(rowFields);
+    }
 
     doc.setDrawColor(...hexToRgb(LINE));
     doc.setLineWidth(0.3);
