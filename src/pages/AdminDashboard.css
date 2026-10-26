@@ -111,6 +111,40 @@
 }
 .admin-search:focus { outline: none; border-color: #1a4b8c; }
 
+.admin-skill-search {
+  width: 280px;
+  border-color: #e3c56b;
+}
+.admin-skill-search:focus { border-color: #b8860b; }
+
+.skill-search-summary {
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: #fff8e1;
+  color: #5c4a12;
+  font-size: 14px;
+}
+.skill-search-hint { color: #8a7a4a; font-size: 12px; }
+
+.row-matches {
+  list-style: none;
+  margin: 4px 0 2px;
+  padding: 0;
+  font-size: 12px;
+  color: #555;
+  max-width: 420px;
+}
+.row-matches li { margin-top: 2px; line-height: 1.4; }
+.row-match-label { font-weight: 700; color: #1a4b8c; }
+.row-match-more { color: #888; font-style: italic; }
+.row-matches mark {
+  background: #ffe58a;
+  color: inherit;
+  padding: 0 1px;
+  border-radius: 2px;
+}
+
 .admin-select-label {
   display: flex;
   align-items: center;
@@ -547,7 +581,7 @@
   .admin-main { padding: 16px; }
   .admin-toolbar { flex-direction: column; align-items: flex-start; }
   .admin-toolbar-actions { width: 100%; }
-  .admin-search { width: 100%; }
+  .admin-search, .admin-skill-search { width: 100%; }
   .admin-select-label { flex: 1 1 100%; }
   .admin-select { flex: 1; }
   .detail-fields { grid-template-columns: 1fr; }

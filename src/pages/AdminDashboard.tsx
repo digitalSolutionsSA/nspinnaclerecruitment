@@ -43,6 +43,95 @@ function normalizeIdentity(v: string | null | undefined): string {
   return (v ?? '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 }
 
+// Application fields the profession/skills keyword search scans.
+const SKILL_FIELDS: [keyof Candidate, string][] = [
+  ['current_job_duties', 'Current Job Duties'],
+  ['previous_job_duties', 'Previous Job Duties'],
+  ['other_skills', 'Other Skills'],
+  ['mechanical_skills', 'Mechanical Skills'],
+  ['tertiary_education', 'Tertiary Education'],
+  ['current_employer', 'Current Employer'],
+  ['previous_employer', 'Previous Employer'],
+  ['highest_education', 'Highest School Education'],
+  ['tractors', 'Tractors'],
+  ['combines', 'Combines / Harvesters'],
+  ['tillage_cultivation', 'Tillage / Cultivation'],
+  ['silage_haymaking', 'Silage / Haymaking'],
+  ['sprayers', 'Sprayers'],
+  ['other_farm_equipment', 'Other Farm Equipment'],
+  ['earthmoving', 'Earthmoving Equipment'],
+  ['trucks', 'Trucks'],
+  ['livestock_farming', 'Livestock Farming'],
+  ['crop_farming', 'Crop Farming'],
+  ['irrigation_farming', 'Irrigation Farming'],
+  ['driver_license_code', "Driver's Licence Code"],
+  ['admin_note', 'Admin Note'],
+];
+
+interface SkillMatch {
+  label: string;
+  snippet: string;
+}
+
+const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+// Trims one common ending so a keyword finds its word family:
+// boilermaker(s) → "boilermak" (boilermaking), welder → "weld" (welding), plumber → "plumb".
+function stemKeyword(t: string): string {
+  if (t.length <= 5) return t;
+  for (const suffix of ['ers', 'ing', 'er', 's']) {
+    if (t.endsWith(suffix) && t.length - suffix.length >= 4) return t.slice(0, -suffix.length);
+  }
+  return t;
+}
+
+// Commas separate keywords (all must match); spaces inside one are ignored so
+// "boiler maker" behaves like "boilermaker". "Boilermakers, welder" → ["boilermak", "weld"]
+function parseKeywords(input: string): string[] {
+  return input
+    .split(/[,;]+/)
+    .map(t => stemKeyword(squash(t)))
+    .filter(Boolean);
+}
+
+// Also matches across spaces/hyphens: "boilermaker" finds "boiler-maker" and "Boiler Maker".
+function textHasTerm(text: string, term: string): boolean {
+  return text.toLowerCase().includes(term) || squash(text).includes(term);
+}
+
+function makeSnippet(text: string, terms: string[]): string {
+  const lower = text.toLowerCase();
+  const at = terms.map(t => lower.indexOf(t)).filter(i => i >= 0).sort((a, b) => a - b)[0] ?? 0;
+  const start = Math.max(0, at - 40);
+  const end = Math.min(text.length, at + 80);
+  return (start > 0 ? '…' : '') + text.slice(start, end).replace(/\s+/g, ' ').trim() + (end < text.length ? '…' : '');
+}
+
+// Every keyword must appear somewhere in the application; returns where each was found.
+// null = not a match.
+function findSkillMatches(c: Candidate, terms: string[]): SkillMatch[] | null {
+  const sources: [string, string][] = SKILL_FIELDS
+    .map(([field, label]) => [label, String(c[field] ?? '')] as [string, string])
+    .concat(parseQualifications(c.other_qualifications).map(q => ['Qualification', q.title] as [string, string]))
+    .filter(([, text]) => text.trim());
+
+  if (!terms.every(term => sources.some(([, text]) => textHasTerm(text, term)))) return null;
+
+  return sources
+    .filter(([, text]) => terms.some(term => textHasTerm(text, term)))
+    .map(([label, text]) => ({ label, snippet: makeSnippet(text, terms) }));
+}
+
+function Highlight({ text, terms }: { text: string; terms: string[] }) {
+  if (terms.length === 0) return <>{text}</>;
+  const pattern = new RegExp(`(${terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
+  return (
+    <>
+      {text.split(pattern).map((part, i) => (i % 2 === 1 ? <mark key={i}>{part}</mark> : part))}
+    </>
+  );
+}
+
 type ShowFilter = 'all' | 'complete' | 'incomplete' | 'blocked';
 type SortOption = 'recent' | 'newest' | 'oldest' | 'az' | 'za';
 
@@ -1109,6 +1198,7 @@ export default function AdminDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [savingNoteId, setSavingNoteId] = useState<string | null>(null);
+  const [skillSearch, setSkillSearch] = useState('');
   const [show, setShow] = useState<ShowFilter>('all');
   const [sortBy, setSortBy] = useState<SortOption>('recent');
   const [recent, setRecent] = useState<Record<string, number>>(loadRecentlyWorked);
@@ -1196,7 +1286,17 @@ export default function AdminDashboard() {
 
   const blockedMatches = findBlockedMatches(candidates);
 
+  const skillTerms = parseKeywords(skillSearch);
+  const skillMatchesById = new Map<string, SkillMatch[]>();
+  if (skillTerms.length > 0) {
+    for (const c of candidates) {
+      const matches = findSkillMatches(c, skillTerms);
+      if (matches) skillMatchesById.set(c.id, matches);
+    }
+  }
+
   const filtered = candidates.filter(c => {
+    if (skillTerms.length > 0 && !skillMatchesById.has(c.id)) return false;
     if (show === 'complete' && (!c.is_complete || c.is_blocked)) return false;
     if (show === 'incomplete' && (c.is_complete || c.is_blocked)) return false;
     if (show === 'blocked' && !c.is_blocked) return false;
@@ -1256,6 +1356,14 @@ export default function AdminDashboard() {
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
+            <input
+              className="admin-search admin-skill-search"
+              type="search"
+              placeholder="Profession / skill, e.g. boilermaker"
+              title="Searches job duties, skills, education, equipment, qualifications and notes. Separate several keywords with commas, e.g. boilermaker, code 14"
+              value={skillSearch}
+              onChange={e => setSkillSearch(e.target.value)}
+            />
             <label className="admin-select-label">
               Show
               <select className="admin-select" value={show} onChange={e => setShow(e.target.value as ShowFilter)}>
@@ -1280,11 +1388,19 @@ export default function AdminDashboard() {
 
         {error && <div className="admin-error">{error}</div>}
 
+        {!loading && skillTerms.length > 0 && (
+          <div className="skill-search-summary">
+            <strong>{filtered.length}</strong> candidate{filtered.length !== 1 ? 's' : ''} mention “{skillSearch.trim()}” in their
+            job duties, skills, education, equipment experience, qualifications or admin notes.
+            <span className="skill-search-hint"> Uploaded documents (PDFs/photos) are not searched.</span>
+          </div>
+        )}
+
         {loading ? (
           <div className="admin-loading">Loading candidates…</div>
         ) : filtered.length === 0 ? (
           <div className="admin-empty">
-            {search || show !== 'all' ? 'No candidates match your search or filter.' : 'No candidates registered yet.'}
+            {search || skillSearch.trim() || show !== 'all' ? 'No candidates match your search or filter.' : 'No candidates registered yet.'}
           </div>
         ) : (
           <div className="candidates-table-wrap">
@@ -1332,6 +1448,18 @@ export default function AdminDashboard() {
                               <span className="incomplete-badge" title="This profile is incomplete and will not be considered">Incomplete</span>
                             )}
                           </div>
+                          {skillMatchesById.has(c.id) && (
+                            <ul className="row-matches">
+                              {skillMatchesById.get(c.id)!.slice(0, 2).map((m, mi) => (
+                                <li key={mi}>
+                                  <span className="row-match-label">{m.label}:</span> <Highlight text={m.snippet} terms={skillTerms} />
+                                </li>
+                              ))}
+                              {skillMatchesById.get(c.id)!.length > 2 && (
+                                <li className="row-match-more">+{skillMatchesById.get(c.id)!.length - 2} more place{skillMatchesById.get(c.id)!.length - 2 !== 1 ? 's' : ''}</li>
+                              )}
+                            </ul>
+                          )}
                           <div className="row-note" onClick={e => e.stopPropagation()}>
                             <input
                               type="text"
