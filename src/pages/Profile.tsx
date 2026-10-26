@@ -2,6 +2,7 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { friendlyBlockError } from '../lib/blocking';
 import './Profile.css';
 
 interface ProfileData {
@@ -81,7 +82,7 @@ const SESSION_EXPIRED_MSG = 'Could not save — your session may have expired. P
 // confirm a row actually came back before reporting success.
 async function persistCandidateUpdate(userId: string, values: Record<string, unknown>): Promise<string | null> {
   const { data, error } = await supabase.from('candidates').update(values).eq('id', userId).select('id');
-  if (error) return error.message;
+  if (error) return friendlyBlockError(error.message);
   if (!data || data.length === 0) return SESSION_EXPIRED_MSG;
   return null;
 }
@@ -112,6 +113,15 @@ export default function Profile() {
       .select('*')
       .eq('id', user!.id)
       .single();
+
+    // Catches a candidate who was already signed in when staff blocked them.
+    // Navigate before signing out, otherwise the "no user" effect above redirects
+    // to /login first and the blocked message is lost.
+    if (data?.is_blocked) {
+      navigate('/login', { state: { blocked: true } });
+      await signOut();
+      return;
+    }
 
     if (data) {
       setProfile({ ...empty, ...data });
@@ -208,7 +218,7 @@ export default function Profile() {
       .from('candidates')
       .upsert({ id: user!.id, ...profile }, { onConflict: 'id' })
       .select('id');
-    if (error) return error.message;
+    if (error) return friendlyBlockError(error.message);
     if (!data || data.length === 0) return SESSION_EXPIRED_MSG;
     return null;
   };

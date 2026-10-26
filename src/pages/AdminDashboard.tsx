@@ -33,6 +33,69 @@ interface Candidate {
   other_qualifications: Qualification[] | null;
   is_complete: boolean;
   admin_note: string | null;
+  is_blocked: boolean;
+  blocked_reason: string | null;
+  blocked_at: string | null;
+}
+
+// Must match public.normalize_identity() in the database.
+function normalizeIdentity(v: string | null | undefined): string {
+  return (v ?? '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+}
+
+type ShowFilter = 'all' | 'complete' | 'incomplete' | 'blocked';
+type SortOption = 'recent' | 'newest' | 'oldest' | 'az' | 'za';
+
+// candidateId → timestamp of when this browser last opened/edited them.
+const RECENT_KEY = 'admin_recently_worked';
+
+function loadRecentlyWorked(): Record<string, number> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function compareCandidates(a: Candidate, b: Candidate, sortBy: SortOption, recent: Record<string, number>): number {
+  const created = (c: Candidate) => (c.created_at ? new Date(c.created_at).getTime() : 0);
+  const name = (c: Candidate) => `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim();
+  switch (sortBy) {
+    case 'recent':
+      // Worked-on candidates first (latest at top), then everyone else newest first.
+      return (recent[b.id] ?? 0) - (recent[a.id] ?? 0) || created(b) - created(a);
+    case 'newest':
+      return created(b) - created(a);
+    case 'oldest':
+      return created(a) - created(b);
+    case 'az':
+      return name(a).localeCompare(name(b), 'en', { sensitivity: 'base' });
+    case 'za':
+      return name(b).localeCompare(name(a), 'en', { sensitivity: 'base' });
+  }
+}
+
+// Unblocked candidates whose ID or passport number matches a blocked candidate
+// (e.g. the same person registered twice before being blocked).
+function findBlockedMatches(candidates: Candidate[]): Map<string, Candidate> {
+  const blockedBy = new Map<string, Candidate>();
+  for (const c of candidates) {
+    if (!c.is_blocked) continue;
+    const id = normalizeIdentity(c.id_number);
+    const pp = normalizeIdentity(c.passport_number);
+    if (id) blockedBy.set('id:' + id, c);
+    if (pp) blockedBy.set('pp:' + pp, c);
+  }
+  const matches = new Map<string, Candidate>();
+  for (const c of candidates) {
+    if (c.is_blocked) continue;
+    const id = normalizeIdentity(c.id_number);
+    const pp = normalizeIdentity(c.passport_number);
+    const hit = (id && blockedBy.get('id:' + id)) || (pp && blockedBy.get('pp:' + pp));
+    if (hit) matches.set(c.id, hit);
+  }
+  return matches;
 }
 
 interface Qualification {
@@ -689,7 +752,97 @@ async function uploadQualificationForCandidate(
   return value as Qualification[];
 }
 
-function CandidateDetail({ c, onBack, onUpdate }: { c: Candidate; onBack: () => void; onUpdate: (updated: Candidate) => void }) {
+function BlockPanel({ c, matchedBlocked, onUpdate }: { c: Candidate; matchedBlocked?: Candidate; onUpdate: (updated: Candidate) => void }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit(action: 'block' | 'unblock') {
+    if (action === 'block' && !reason.trim()) {
+      setError('Please enter a reason.');
+      return;
+    }
+    if (action === 'unblock' && !window.confirm(`Unblock ${c.first_name} ${c.last_name}? They will be able to sign in again, and their ID / passport number will be allowed to register.`)) {
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const token = sessionStorage.getItem('admin_token') ?? '';
+      const res = await fetch('/.netlify/functions/admin-block-candidate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ candidateId: c.id, action, reason: reason.trim() }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(body?.error ?? res.statusText);
+        return;
+      }
+      onUpdate({ ...c, is_blocked: body.is_blocked, blocked_reason: body.blocked_reason, blocked_at: body.blocked_at });
+      setOpen(false);
+      setReason('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Request failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (c.is_blocked) {
+    return (
+      <div className="block-panel block-panel-blocked">
+        <div className="block-panel-body">
+          <strong>⛔ Blocked{c.blocked_at ? ` on ${new Date(c.blocked_at).toLocaleDateString('en-ZA')}` : ''}</strong>
+          {c.blocked_reason && <p className="block-panel-reason">{c.blocked_reason}</p>}
+          <p className="block-panel-hint">This candidate cannot sign in, and their ID / passport number cannot be used to register again.</p>
+          {error && <p className="block-panel-error">{error}</p>}
+        </div>
+        <button className="block-panel-btn unblock" disabled={busy} onClick={() => submit('unblock')}>
+          {busy ? 'Working…' : 'Unblock'}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="block-panel">
+      {matchedBlocked && (
+        <p className="block-panel-warning">
+          ⚠ This candidate's ID or passport number matches blocked candidate {matchedBlocked.first_name} {matchedBlocked.last_name}.
+        </p>
+      )}
+      {!open ? (
+        <button className="block-panel-btn" onClick={() => setOpen(true)}>⚑ Flag &amp; Block Candidate</button>
+      ) : (
+        <div className="block-panel-form">
+          <label>Reason for blocking (staff only — the candidate never sees this)</label>
+          <textarea
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            rows={3}
+            placeholder="e.g. Absconded from employer in USA, March 2026"
+          />
+          <p className="block-panel-hint">
+            Blocking stops this candidate signing in and blocks
+            {c.id_number ? ` ID number ${c.id_number}` : ''}{c.id_number && c.passport_number ? ' and' : ''}{c.passport_number ? ` passport ${c.passport_number}` : ''}
+            {!c.id_number && !c.passport_number ? ' their account (no ID or passport number on file)' : ''} from registering again.
+          </p>
+          {error && <p className="block-panel-error">{error}</p>}
+          <div className="block-panel-actions">
+            <button className="block-panel-btn" disabled={busy} onClick={() => submit('block')}>
+              {busy ? 'Blocking…' : 'Confirm Block'}
+            </button>
+            <button className="block-panel-cancel" disabled={busy} onClick={() => { setOpen(false); setError(''); }}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CandidateDetail({ c, matchedBlocked, onBack, onUpdate }: { c: Candidate; matchedBlocked?: Candidate; onBack: () => void; onUpdate: (updated: Candidate) => void }) {
   const h2aUrls = c.doc_h2a_visas ? c.doc_h2a_visas.split(',') : [];
   const [exporting, setExporting] = useState(false);
   const [uploadingField, setUploadingField] = useState<string | null>(null);
@@ -749,6 +902,8 @@ function CandidateDetail({ c, onBack, onUpdate }: { c: Candidate; onBack: () => 
           <p className="detail-meta">{c.email} · Registered {new Date(c.created_at).toLocaleDateString('en-ZA')}</p>
         </div>
       </div>
+
+      <BlockPanel c={c} matchedBlocked={matchedBlocked} onUpdate={onUpdate} />
 
       <Section title="Personal Information">
         <Field label="First Name" value={c.first_name} />
@@ -954,6 +1109,23 @@ export default function AdminDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [savingNoteId, setSavingNoteId] = useState<string | null>(null);
+  const [show, setShow] = useState<ShowFilter>('all');
+  const [sortBy, setSortBy] = useState<SortOption>('recent');
+  const [recent, setRecent] = useState<Record<string, number>>(loadRecentlyWorked);
+
+  // Remember when a candidate was last opened or edited so they float to the top.
+  const markWorkedOn = (candidateId: string) => {
+    setRecent(prev => {
+      const next = { ...prev, [candidateId]: Date.now() };
+      try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)); } catch { /* storage unavailable */ }
+      return next;
+    });
+  };
+
+  const openCandidate = (c: Candidate) => {
+    markWorkedOn(c.id);
+    setSelected(c);
+  };
 
   const fetchCandidates = async () => {
     const token = sessionStorage.getItem('admin_token') ?? '';
@@ -1004,6 +1176,7 @@ export default function AdminDashboard() {
         return;
       }
       setCandidates(prev => prev.map(c => (c.id === candidateId ? { ...c, admin_note: note } : c)));
+      markWorkedOn(candidateId);
       setNoteDrafts(prev => {
         const next = { ...prev };
         delete next[candidateId];
@@ -1021,7 +1194,12 @@ export default function AdminDashboard() {
     window.location.href = '/';
   };
 
+  const blockedMatches = findBlockedMatches(candidates);
+
   const filtered = candidates.filter(c => {
+    if (show === 'complete' && (!c.is_complete || c.is_blocked)) return false;
+    if (show === 'incomplete' && (c.is_complete || c.is_blocked)) return false;
+    if (show === 'blocked' && !c.is_blocked) return false;
     const q = search.toLowerCase();
     return (
       `${c.first_name} ${c.last_name}`.toLowerCase().includes(q) ||
@@ -1029,7 +1207,7 @@ export default function AdminDashboard() {
       c.id_number?.toLowerCase().includes(q) ||
       c.contact_number?.includes(q)
     );
-  });
+  }).sort((a, b) => compareCandidates(a, b, sortBy, recent));
 
   if (selected) {
     return (
@@ -1041,8 +1219,10 @@ export default function AdminDashboard() {
         <main className="admin-main">
           <CandidateDetail
             c={selected}
+            matchedBlocked={blockedMatches.get(selected.id)}
             onBack={() => setSelected(null)}
             onUpdate={updated => {
+              markWorkedOn(updated.id);
               setSelected(updated);
               setCandidates(prev => prev.map(x => (x.id === updated.id ? updated : x)));
             }}
@@ -1076,6 +1256,25 @@ export default function AdminDashboard() {
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
+            <label className="admin-select-label">
+              Show
+              <select className="admin-select" value={show} onChange={e => setShow(e.target.value as ShowFilter)}>
+                <option value="all">All candidates</option>
+                <option value="complete">Complete applications</option>
+                <option value="incomplete">Incomplete applications</option>
+                <option value="blocked">Blocked</option>
+              </select>
+            </label>
+            <label className="admin-select-label">
+              Sort by
+              <select className="admin-select" value={sortBy} onChange={e => setSortBy(e.target.value as SortOption)}>
+                <option value="recent">Recently worked on</option>
+                <option value="newest">Newest registered</option>
+                <option value="oldest">Oldest registered</option>
+                <option value="az">Name A–Z</option>
+                <option value="za">Name Z–A</option>
+              </select>
+            </label>
           </div>
         </div>
 
@@ -1084,7 +1283,9 @@ export default function AdminDashboard() {
         {loading ? (
           <div className="admin-loading">Loading candidates…</div>
         ) : filtered.length === 0 ? (
-          <div className="admin-empty">{search ? 'No candidates match your search.' : 'No candidates registered yet.'}</div>
+          <div className="admin-empty">
+            {search || show !== 'all' ? 'No candidates match your search or filter.' : 'No candidates registered yet.'}
+          </div>
         ) : (
           <div className="candidates-table-wrap">
             <table className="candidates-table">
@@ -1114,13 +1315,19 @@ export default function AdminDashboard() {
                   const noteDirty = noteDraft !== (c.admin_note ?? '');
 
                   return (
-                    <tr key={c.id} onClick={() => setSelected(c)} className="candidate-row">
+                    <tr key={c.id} onClick={() => openCandidate(c)} className={`candidate-row${c.is_blocked ? ' candidate-row-blocked' : ''}`}>
                       <td className="td-num">{i + 1}</td>
                       <td className="td-name">
                         <div className="row-avatar">{(c.first_name?.[0] ?? '?').toUpperCase()}</div>
                         <div className="td-name-stack">
                           <div className="td-name-line">
                             <span>{c.first_name} {c.last_name}</span>
+                            {c.is_blocked && (
+                              <span className="blocked-badge" title={c.blocked_reason ?? 'Blocked'}>Blocked</span>
+                            )}
+                            {blockedMatches.has(c.id) && (
+                              <span className="blocked-match-badge" title="ID or passport number matches a blocked candidate">Matches blocked</span>
+                            )}
                             {!c.is_complete && (
                               <span className="incomplete-badge" title="This profile is incomplete and will not be considered">Incomplete</span>
                             )}
@@ -1156,7 +1363,7 @@ export default function AdminDashboard() {
                           {docCount} file{docCount !== 1 ? 's' : ''}
                         </span>
                       </td>
-                      <td className="td-view"><button className="view-btn" onClick={e => { e.stopPropagation(); setSelected(c); }}>View →</button></td>
+                      <td className="td-view"><button className="view-btn" onClick={e => { e.stopPropagation(); openCandidate(c); }}>View →</button></td>
                     </tr>
                   );
                 })}

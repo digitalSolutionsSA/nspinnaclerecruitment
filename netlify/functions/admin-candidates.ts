@@ -30,9 +30,28 @@ export const handler: Handler = async (event) => {
     return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
   }
 
+  // Block reasons live in blocked_identities (service-role only), not on the candidate row.
+  const { data: blocks, error: blocksError } = await supabase
+    .from('blocked_identities')
+    .select('candidate_id, reason, created_at');
+
+  if (blocksError) {
+    return { statusCode: 500, body: JSON.stringify({ error: blocksError.message }) };
+  }
+
+  const blockByCandidate = new Map<string, { reason: string | null; created_at: string }>();
+  for (const b of blocks ?? []) {
+    if (b.candidate_id && !blockByCandidate.has(b.candidate_id)) blockByCandidate.set(b.candidate_id, b);
+  }
+
+  const result = (data ?? []).map(c => {
+    const block = blockByCandidate.get(c.id);
+    return { ...c, blocked_reason: block?.reason ?? null, blocked_at: block?.created_at ?? null };
+  });
+
   return {
     statusCode: 200,
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify(result),
   };
 };

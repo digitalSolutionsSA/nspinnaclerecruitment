@@ -1,17 +1,20 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { ACCOUNT_BLOCKED_MSG } from '../lib/blocking';
 import './Login.css';
 
 type Mode = 'login' | 'forgot';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  // Profile redirects here with { blocked: true } when a signed-in candidate has been blocked.
+  const [error, setError] = useState((location.state as { blocked?: boolean } | null)?.blocked ? ACCOUNT_BLOCKED_MSG : '');
   const [message, setMessage] = useState('');
 
   const handleLogin = async (e: FormEvent) => {
@@ -22,7 +25,7 @@ export default function Login() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      setError(error.message);
+      setError(error.code === 'user_banned' ? ACCOUNT_BLOCKED_MSG : error.message);
       setLoading(false);
     } else {
       navigate('/profile');

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { REGISTRATION_BLOCKED_MSG } from '../lib/blocking';
 import './CandidateRegistration.css';
 
 interface FormData {
@@ -169,6 +170,18 @@ export default function CandidateRegistration() {
     setError('');
     setLoading(true);
 
+    // Refuse blocked ID / passport numbers before an auth account is created.
+    // The database trigger enforces this too; this just avoids a half-made account.
+    const { data: identityBlocked, error: blockCheckError } = await supabase.rpc('is_identity_blocked', {
+      p_id_number: form.idNumber,
+      p_passport_number: form.passportNumber,
+    });
+    if (!blockCheckError && identityBlocked) {
+      setError(REGISTRATION_BLOCKED_MSG);
+      setLoading(false);
+      return;
+    }
+
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: form.email,
       password: form.password,
@@ -235,6 +248,12 @@ export default function CandidateRegistration() {
       });
 
       if (dbError) {
+        if (dbError.message.includes('IDENTITY_BLOCKED')) {
+          await supabase.auth.signOut();
+          setError(REGISTRATION_BLOCKED_MSG);
+          setLoading(false);
+          return;
+        }
         setError('Account created but profile save failed: ' + dbError.message);
         setLoading(false);
         return;
